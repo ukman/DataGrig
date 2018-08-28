@@ -1,0 +1,6 @@
+{
+  "url":"jdbc:postgresql://10.116.0.100:5432/cyfoman",
+  "driver":"org.postgresql.Driver",
+  "user":"user0db",
+  "password":"J,kfrf2501"
+}

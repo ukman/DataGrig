@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html ng-app="DataGrigApp">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+        <!--<script src="//cdnjs.cloudflare.com/ajax/libs/angular.js/1.7.2/angular.min.js"></script>-->
+        <!--<script src="//cdnjs.cloudflare.com/ajax/libs/angular-ui-router/1.0.20/angular-ui-router.js"></script>-->
+        <!--<script src="//cdnjs.cloudflare.com/ajax/libs/angular-resource/1.7.2/angular-resource.js"></script>-->
+        <script src="3rdparty/angular.min.js"></script>
+        <script src="3rdparty/angular-ui-router.js"></script>
+        <script src="3rdparty/angular-resource.js"></script>
+        <script src="index.js"></script>
+        <script src="resources/connections.js"></script>
+        <script src="resources/aliases.js"></script>
+        <script src="connections/connections.js"></script>
+        <script src="data/data.js"></script>
+        <script src="alias/alias.js"></script>
+        <script src="query/query.js"></script>
+
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+
+        <script src="router.js"></script>
+
+    </head>
+    <body>
+        <!--
+        <h1>DataGrig</h1>
+        -->
+        <div ng-controller="DataGrigCtrl as c">
+        </div>
+
+        <ui-view class="container-fluid"></ui-view>
+
+    </body>
+</html>

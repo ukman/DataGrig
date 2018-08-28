@@ -1,0 +1,6 @@
+{
+  "url":"jdbc:postgresql://localhost:63333/cyn_zapstroy",
+  "driver":"org.postgresql.Driver",
+  "user":"equipment",
+  "password":"MKS2000polet"
+}

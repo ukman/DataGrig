@@ -1,0 +1,164 @@
+buildscript {
+    ext {
+        springBootVersion = '1.4.1.RELEASE'
+    }
+    repositories {
+        mavenCentral()
+        maven { url "https://plugins.gradle.org/m2/" }
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+        classpath("se.transmode.gradle:gradle-docker:1.2")
+        classpath("com.moowork.gradle:gradle-node-plugin:1.1.1")
+        // classpath 'org.springframework:springloaded:1.2.0.RELEASE'
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+apply plugin: 'spring-boot'
+apply plugin: 'docker'
+apply plugin: 'com.moowork.node'
+
+//apply plugin: 'idea'
+//
+//idea {
+//  module {
+//    inheritOutputDirs = false
+//    outputDir = file("$buildDir/classes/main/")
+//  }
+//}
+
+jar {
+    baseName = 'data-grig'
+    version = '0.0.1'
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring dependencies
+    compile 'org.springframework.boot:spring-boot-starter-web'
+    // compile 'org.springframework.boot:spring-boot-starter-security'
+    compile 'org.springframework.boot:spring-boot-starter-tomcat'
+    compile 'org.springframework.boot:spring-boot-devtools'
+    compile 'org.springframework.boot:spring-boot-starter-data-jpa'
+    compile 'org.springframework.cloud:spring-cloud-starter-feign:1.2.2.RELEASE'
+    compile 'org.springframework.cloud:spring-cloud-starter-zipkin:1.1.3.RELEASE'
+
+    compile 'org.postgresql:postgresql'
+
+    // https://mvnrepository.com/artifact/hikari-cp/hikari-cp
+    compile group: 'com.zaxxer', name: 'HikariCP', version: '3.1.0'
+
+
+    // Добавил Влад
+    compile group: 'com.h2database', name: 'h2', version: '1.4.197'
+    compile("org.springframework.boot:spring-boot-starter-data-rest")
+    compile "org.springframework.boot:spring-boot-configuration-processor"
+
+
+    // https://mvnrepository.com/artifact/io.github.openfeign/feign-jackson
+    compile group: 'io.github.openfeign', name: 'feign-jackson', version: '9.3.1'
+
+    // https://mvnrepository.com/artifact/com.microsoft.azure/azure-storage
+    compile group: 'com.microsoft.azure', name: 'azure-storage', version: '6.1.0'
+
+
+    //Utilities
+    compile 'commons-beanutils:commons-beanutils:1.9.2'
+    compile 'commons-validator:commons-validator:1.5.1'
+    compile 'org.apache.commons:commons-lang3:3.4'
+    compile 'io.springfox:springfox-swagger2:2.6.0'
+    compile 'io.springfox:springfox-swagger-ui:2.6.0'
+    compile 'com.jayway.jsonpath:json-path:2.2.0'
+    compile 'com.google.code.gson:gson:2.7'
+    compile 'com.squareup.okhttp3:okhttp:3.4.1'
+    compile 'com.squareup.okhttp3:logging-interceptor:3.4.1'
+
+    // https://mvnrepository.com/artifact/com.github.docker-java/docker-java
+    compile group: 'com.github.docker-java', name: 'docker-java', version: '3.0.10'
+
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-exec
+    compile group: 'org.apache.commons', name: 'commons-exec', version: '1.3'
+
+    // https://mvnrepository.com/artifact/org.eclipse.jgit/org.eclipse.jgit
+    compile group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '4.7.0.201704051617-r'
+
+    // https://mvnrepository.com/artifact/org.projectlombok/lombok
+    compile group: 'org.projectlombok', name: 'lombok', version: '1.16.16'
+
+    compile 'com.samskivert:jmustache:1.12'
+
+    // compile 'com.auth0:auth0-spring-security-mvc:1.0.0'
+    // compile 'com.auth0:auth0-spring-security-api:0.0.3'
+
+//    compile 'mysql:mysql-connector-java:6.0.4'
+
+    // compile 'org.springframework.security:spring-security-taglibs'
+
+    compile 'org.apache.tomcat.embed:tomcat-embed-jasper'
+    //providedRuntime 'org.apache.tomcat.embed:tomcat-embed-jasper'
+    compile 'javax.servlet:jstl'
+
+    // Jackson serializers for Java 8 java.time.* API
+    compile 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.8.4'
+
+    //Tests
+    testCompile 'org.springframework.boot:spring-boot-starter-test'
+    testCompile 'com.github.fakemongo:fongo:1.6.5'
+    testCompile 'org.mockito:mockito-core:1.10.19'
+    testCompile 'org.assertj:assertj-core:3.5.2'
+    testCompile "org.powermock:powermock-api-mockito:1.6.5"
+    testCompile "org.powermock:powermock-module-junit4:1.6.5"
+    testCompile "org.powermock:powermock-module-testng:1.6.5"
+}
+
+compileJava.dependsOn(processResources)
+
+task pathingJar(type: Jar) {
+    dependsOn configurations.runtime
+    appendix = 'pathing'
+
+    doFirst {
+        manifest {
+            attributes "Class-Path": configurations.runtime.files.collect {it.toURL().toString().replaceFirst("file:/", '/')}.join(" ")
+        }
+    }
+}
+
+bootRun {
+    dependsOn pathingJar
+    doFirst {
+        classpath = files("$buildDir/classes/main", "$buildDir/resources/main", pathingJar.archivePath)
+    }
+    // Make classpath resources (src/main/resources) reloadable without running processResources.
+    addResources = true
+}
+
+eclipse {
+    classpath {
+        containers.remove('org.eclipse.jdt.launching.JRE_CONTAINER')
+        containers 'org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8'
+    }
+}
+
+task slave <<{
+    bootRun { systemProperty "spring.profiles.active", "slave" }
+}
+slave.finalizedBy bootRun
+
+task master <<{
+    bootRun { systemProperty "spring.profiles.active", "master" }
+}
+master.finalizedBy bootRun
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.2'
+}

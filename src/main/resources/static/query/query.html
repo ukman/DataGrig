@@ -1,0 +1,75 @@
+<style>
+    .cell-value {
+        max-width: 500px;
+        max-height: 200px;
+        overflow: auto;
+    }
+</style>
+
+<form>
+    <div class="form-group">
+        <textarea ng-model="query" rows="10" class="form-control">
+
+        </textarea>
+    </div>
+    <div class="form-group">
+        <button class="btn btn-lg btn-primary" ng-click="runQuery()">Run Query</button>
+        <input type="checkbox" ng-model="showEmpty" id="showEmpty">
+        <label class="form-check-label" for="showEmpty">
+            Show empty
+        </label>
+    </div>
+</form>
+<div>
+    <table>
+        <thead ng-show="metaData" class="table">
+            <tr>
+                <th ng-repeat="col in metaData">
+                    {{col.name}}
+                </th>
+            </tr>
+        </thead>
+        <tbody ng-repeat="con in connections" ng-hide="con.error && !showEmpty">
+            <tr class="table-primary">
+                <td colspan="{{metaData.length}}">
+                    <h1>
+                        {{con.name}}
+                    </h1>
+                    <div class="alert alert-danger" role="alert" ng-show="con.error">
+                        {{con.error.data.message}}
+                    </div>
+                </td>
+            </tr>
+            <tr ng-hide="con.catalogs.$resolved">
+                <td>
+                    Loading catalogs...
+                </td>
+            </tr>
+
+            <tr ng-repeat-start="catalog in con.catalogs" ng-hide="!showEmpty && (catalog.data.$resolved && catalog.data.data.length==0 || catalog.error)">
+                <td colspan="{{metaData.length}}" class="table-secondary">
+                    <h2>
+                        {{con.name}}.{{catalog.name}}
+                    </h2>
+                    <div class="alert alert-danger" role="alert" ng-show="catalog.error">
+                        {{catalog.error.data.message}}
+                    </div>
+                </td>
+            </tr>
+                <tr ng-hide="catalog.data.$resolved">
+                    <td>
+                        Loading data...
+                    </td>
+                </tr>
+                <tr ng-repeat="row in catalog.data.data">
+                    <td ng-repeat="col in metaData" title="{{col.name}}">
+                        <div class="cell-value">
+                            {{row[col.name]}}
+                        </div>
+                    </td>
+                </tr>
+            <tr ng-repeat-end="">
+            </tr>
+        </tbody>
+    </table>
+</div>

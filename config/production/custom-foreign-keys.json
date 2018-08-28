@@ -1,0 +1,9 @@
+[
+  {
+    "name":"global-id=foreign",
+    "detailsTable":"order_main",
+    "fkFieldNameInDetailsTable":"global_id",
+    "linker":"(function(value){console.log(arguments);return '#!/alias/' + value.substring(0,3) + '/public/order_main?condition=global_id=\\'' + value + '\\'';})"
+
+  }
+]

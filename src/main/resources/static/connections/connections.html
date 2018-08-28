@@ -1,0 +1,79 @@
+<div>
+    Connections <span ng-show="connections && connections.length > 0">({{connections.length}})</span>
+</div>
+<ul>
+    <li ng-repeat="con in connections">
+        <span ng-click="getCatalogs(con)">
+            {{con.name}}
+            {{con.databaseProductName}}
+            {{con.databaseProductVersion}}
+            <span ng-show="con.catalogs.length > 0">({{con.catalogs.length}})</span>
+        </span>
+        <ul>
+            <li ng-repeat="catalog in con.catalogs" >
+                <span>{{catalog.name}}</span>
+                <div>
+                    <p ng-click="getSchemas(con, catalog)">
+                        Schemas <span ng-show="catalog.schemas.length > 0">({{catalog.schemas.length}})</span>
+                    </p>
+
+                    <ul>
+                        <li ng-repeat="schema in catalog.schemas">
+                            <span>{{schema.name}}</span>
+                            <p ng-click="getTables(con, catalog, schema)">
+                                Tables <span ng-show="schema.tables.length > 0">({{schema.tables.length}})</span>
+                            </p>
+                            <ul>
+                                <li ng-repeat="table in schema.tables">
+                                    <a ui-sref="data({ connection: con.name, catalog:catalog.name, schema: schema.name, table:table.name})">
+                                        {{table.name}}
+                                    </a>
+                                    size = {{table.size}}
+                                    <div>
+                                        <span  ng-click="getTableData(con, catalog, schema, table)">Columns</span>
+                                    </div>
+                                    <div ng-show="table.columns">
+                                        <ul>
+                                            <li ng-repeat="col in table.columns">
+                                                {{col.name}} {{col.type}} {{col.size}}
+                                                <span ng-show="findDetailsForeignKey(table, col.name)">
+                                                    -> {{findDetailsForeignKey(table, col.name).masterTable}}
+                                                </span>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div ng-show="table.data">
+                                        <table border="1">
+                                            <thead>
+                                                <tr>
+                                                    <td ng-repeat="col in table.data.metaData">
+                                                        <div>
+                                                            {{col.name}}
+                                                        </div>
+                                                        <div>
+                                                            {{col.type}}
+                                                        </div>
+                                                        <span ng-show="findDetailsForeignKey(table, col.name)">
+                                                            -> {{findDetailsForeignKey(table, col.name).masterTable}}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr ng-repeat="row in table.data.data">
+                                                    <td ng-repeat="col in table.data.metaData">
+                                                        {{row[col.name]}}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+        </ul>
+    </li>
+</ul>

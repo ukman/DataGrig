@@ -1,0 +1,8 @@
+[
+  {
+    "name":"global-id=foreign",
+    "detailsTable":"order_main",
+    "linker":"(function(){return 'http://www.google.ru';})"
+
+  }
+]

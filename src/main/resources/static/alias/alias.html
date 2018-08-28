@@ -1,0 +1,8 @@
+<div>
+    <div ng-show="!alias.$resolved">
+        Alias {{aliasName}} resolving...
+    </div>
+    <div  ng-show="alias.$resolved && !alias.connection">
+        Can not find alias {{aliasName}}
+    </div>
+</div>

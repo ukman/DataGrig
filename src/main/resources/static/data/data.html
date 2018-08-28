@@ -1,0 +1,90 @@
+<style>
+    .cell-value {
+        max-width: 500px;
+        overflow: auto;
+    }
+    .asc {
+        background: linear-gradient(to top, white, lightgray);
+    }
+    .desc {
+        background: linear-gradient(to bottom, white, lightgray);
+    }
+</style>
+<div>
+    <div ng-show="data">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item" aria-current="page">{{$stateParams.connection}}</li>
+                <li class="breadcrumb-item" aria-current="page">{{$stateParams.catalog}}</li>
+                <li class="breadcrumb-item" aria-current="page">{{$stateParams.schema}}</li>
+                <li class="breadcrumb-item" aria-current="page">{{$stateParams.table}}</li>
+            </ol>
+        </nav>
+        <div>
+            <input type="text" name="condition" ng-model="condition" size="100"/>
+            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:condition, order:$stateParams.order, asc:$stateParams.asc})">Filter</a>
+        </div>
+        <div ng-hide="data.$resolved">
+            Loading...
+        </div>
+        <table class="table table-striped data-table" ng-show="data.$resolved">
+            <thead>
+            <tr>
+                <th>
+                    <input ng-model="fildsFilter" title="Filds filter"/>
+                </th>
+                <th ng-repeat="col in data.metaData" ng-click="sort(col.name, $stateParams.asc)"
+                    ng-if="fildsFilter == '' || col.name.match(fildsFilter)"
+                    ng-class="{asc:$stateParams.order == col.name && $stateParams.asc == 'true', desc:$stateParams.order == col.name && $stateParams.asc == 'false'}">
+                    <div>
+                        {{col.name}}
+                    </div>
+                    <div>
+                        {{col.type}}
+                    </div>
+                    <div ng-show="findDetailsForeignKey(col.name)">
+                        <a ng-show="$stateParams.condition"
+                           ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id in (select '+ col.name + ' from ' + $stateParams.table + ' where ' + $stateParams.condition + ')', order:null, asc:null})">
+                            -> {{findDetailsForeignKey(col.name).masterTable}}
+                        </a>
+                        <span ng-hide="$stateParams.condition"
+                            -> {{findDetailsForeignKey(col.name).masterTable}}
+                        </span>
+                    </div>
+                </th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr ng-repeat="row in data.data">
+                <td></td>
+                <td ng-repeat="col in data.metaData" title="{{col.name}}"
+                    ng-if="fildsFilter == '' || col.name.match(fildsFilter)"
+                >
+                    <div class="cell-value cell-type-{{col.type}}"
+                         ng-hide="row[col.name] && findDetailsForeignKey(col.name)">
+                        {{row[col.name]}}
+                    </div>
+                    <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id='+ row[col.name]})"
+                       ng-show="row[col.name] && findDetailsForeignKey(col.name) && !findDetailsForeignKey(col.name).linker">
+                        {{row[col.name]}}
+                        <!--
+                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
+                        -->
+                    </a>
+                    <a href="{{findDetailsForeignKey(col.name).linker(row[col.name])}}"
+                       ng-show="row[col.name] && findDetailsForeignKey(col.name).linker">
+                        {{row[col.name]}}
+                        <!--
+                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
+                        -->
+                    </a>
+                    <div ng-repeat="fk in findMasterForeignKey(col.name)">
+                        <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:fk.detailsTable, condition:fk.fkFieldNameInDetailsTable + '=' + row[col.name], order:'', asc:false})">{{fk.detailsTable}}>>{{$stateParams.table}}</a>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
