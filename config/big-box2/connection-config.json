@@ -1,5 +1,5 @@
 {
-  "url":"jdbc:postgresql://localhost:63123/cyfoman",
+  "url":"jdbc:postgresql://10.1.0.123:5432/cyfoman",
   "driver":"org.postgresql.Driver",
   "user":"equipment",
   "password":"MKS2000polet",

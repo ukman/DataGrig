@@ -1,7 +1,0 @@
-{
-  "url":"jdbc:postgresql://localhost:5432/cyfoman",
-  "driver":"org.postgresql.Driver",
-  "user":"equipment",
-  "password":"password",
-  "aliasQuery":"select exists (select id from options where global_id_prefix = ?)"
-}
