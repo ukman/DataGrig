@@ -10,6 +10,6 @@
     "name":"global-id-foreign-offer",
     "detailsTable":"offer",
     "fkFieldNameInDetailsTable":"global_id",
-    "linker":"(function(value){console.log(arguments);return '#!/alias/' + value.substring(0,3) + '/public/offer_main?condition=global_id=\\'' + value + '\\'';})"
+    "linker":"(function(value){console.log(arguments);return '#!/alias/' + value.substring(0,3) + '/public/offer?condition=global_id=\\'' + value + '\\'';})"
   }
 ]
