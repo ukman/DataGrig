@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
@@ -87,7 +88,9 @@ public class ConnectionService {
                     for (int i = 0; i < md.getColumnCount(); i++) {
                         String fieldName = md.getColumnName(i + 1);
                         Object value = rs.getObject(i + 1);
-                        record.put(fieldName, value);
+                        if(!(value instanceof byte[])) { // Skip BLOBs
+                        	record.put(fieldName, value);
+                        }
                     }
                     records.add(record);
                 }
@@ -462,4 +465,43 @@ public class ConnectionService {
     	
 		return info ;
     }
+
+	public byte[] getBinaryData(String connectionName, String catalog, String schema, String table, String column,
+			String id) throws SQLException, IOException {
+        List<ColumnMetaData> cols = getColumns(connectionName, catalog, schema, table);
+        List<ColumnMetaData> pkCols = cols.stream().filter(ColumnMetaData::isPrimaryKey).collect(Collectors.toList());
+        if(pkCols.size() > 1) {
+            throw new IllegalArgumentException(String.format("Can not process table (%s) with more than 1 PK field", table));
+        }
+        if(pkCols.size() < 1) {
+            throw new IllegalArgumentException(String.format("Can not process table (%s) without PK field", table));
+        }
+        ColumnMetaData pkCol = pkCols.get(0);
+
+        Object oId = id;
+        if(pkCol.getTypeId() == Types.BIGINT
+                || pkCol.getTypeId() == Types.INTEGER
+                || pkCol.getTypeId() == Types.NUMERIC) {
+            oId = Integer.parseInt(String.valueOf(id));
+        }
+        String sql = "select " + column + " from " + schema + "." + table + " where " + pkCol.getName() + "=?";
+        return getBinaryData(connectionName, catalog, sql, oId);
+	}
+
+	public byte[] getBinaryData(String connectionName, String catalog, String sql, Object...params) throws SQLException, IOException {
+        DataSource ds = getDataSource(connectionName, catalog);
+        JdbcTemplate template = new JdbcTemplate(ds);
+        ResultSetExtractor<byte[]> rse = new ResultSetExtractor<byte[]>() {
+
+			@Override
+			public byte[] extractData(ResultSet rs) throws SQLException, DataAccessException {
+				rs.next();
+				return rs.getBytes(1);
+			}
+		};
+		byte[] data = template.query(sql, rse, params);
+		return data;
+		
+	}
+			
 }

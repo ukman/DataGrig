@@ -5,12 +5,18 @@ import com.datagrig.pojo.*;
 import com.datagrig.services.ConfigService;
 import com.datagrig.services.ConnectionService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLConnection;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import javax.servlet.http.HttpServletResponse;
 
 @RestController
 @RequestMapping("/connections")
@@ -183,5 +189,39 @@ public class ConnectionController {
     		@RequestParam("query") String query
     		) throws SQLException, IOException, StandardException {
     	return connectionService.getQueryInfo(connectionName, catalog, query);
+    }
+    
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/columns/{column}/binary", method = RequestMethod.GET)
+    public void getBinaryData(@PathVariable("connectionName") String connectionName,
+                                                        @PathVariable("catalog") String catalog,
+                                                        @PathVariable("schema") String schema,
+                                                        @PathVariable("table") String table,
+                                                        @PathVariable("column") String column,
+                                                        @RequestParam("id") String id,
+                                                        HttpServletResponse response) throws IOException, SQLException {
+    	byte[] data = connectionService.getBinaryData(connectionName, catalog, schema, table, column, id);
+    	response.setContentType(MediaType.IMAGE_JPEG_VALUE);
+    	response.getOutputStream().write(data);
+    }
+    
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/binary", method = RequestMethod.GET)
+    public void getBinaryData(@PathVariable("connectionName") String connectionName,
+                                                        @PathVariable("catalog") String catalog,
+                                                        @RequestParam("sql") String sql,
+                                                        @RequestParam(value="expectedContentType", required=false) String expectedContentType,
+                                                        @RequestParam(value="expectedFileName", required=false) String expectedFileName,
+                                                        HttpServletResponse response) throws IOException, SQLException {
+    	byte[] data = connectionService.getBinaryData(connectionName, catalog, sql);
+    	if(expectedContentType == null) {
+        	InputStream is = new ByteArrayInputStream(data);
+        	String contentType = URLConnection.guessContentTypeFromStream(is);
+    		response.setContentType(contentType);
+    	} else if(expectedContentType.length() > 0) {
+    		response.setContentType(expectedContentType);
+    	}
+    	if(expectedFileName != null) {
+    		response.setHeader("Content-Disposition", "attachment; filename=" + expectedFileName);
+    	}
+    	response.getOutputStream().write(data);
     }
 }
