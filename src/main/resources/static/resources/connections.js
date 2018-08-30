@@ -27,7 +27,7 @@ angular.module('DataGrigApp').factory('Connections', function($resource){
             },
             tables: {
                 method: 'GET',
-                url: '/connections/:name/catalogs/:catalog/:schema',
+                url: '/connections/:name/catalogs/:catalog/schemas/:schema',
                 isArray: true,
                 params: {
                     name:'@name',
@@ -37,7 +37,7 @@ angular.module('DataGrigApp').factory('Connections', function($resource){
             },
             tableData: {
                 method: 'GET',
-                url: '/connections/:name/catalogs/:catalog/:schema/:table/data',
+                url: '/connections/:name/catalogs/:catalog/schemas/:schema/tables/:table/data',
                 params: {
                     name:'@name',
                     catalog: '@catalog',
@@ -48,7 +48,7 @@ angular.module('DataGrigApp').factory('Connections', function($resource){
             },
             tableColumns: {
                 method: 'GET',
-                url: '/connections/:name/catalogs/:catalog/:schema/:table/columns',
+                url: '/connections/:name/catalogs/:catalog/schemas/:schema/tables/:table/columns',
                 isArray: true,
                 params: {
                     name:'@name',
@@ -59,7 +59,7 @@ angular.module('DataGrigApp').factory('Connections', function($resource){
             },
             tableDetailsForeignKeys: {
                 method: 'GET',
-                url: '/connections/:name/catalogs/:catalog/:schema/:table/detailsForeignKeys',
+                url: '/connections/:name/catalogs/:catalog/schemas/:schema/tables/:table/detailsForeignKeys',
                 isArray: true,
                 params: {
                     name:'@name',
@@ -70,8 +70,18 @@ angular.module('DataGrigApp').factory('Connections', function($resource){
             },
             tableMasterForeignKeys: {
                 method: 'GET',
-                url: '/connections/:name/catalogs/:catalog/:schema/:table/masterForeignKeys',
+                url: '/connections/:name/catalogs/:catalog/schemas/:schema/tables/:table/masterForeignKeys',
                 isArray: true,
+                params: {
+                    name:'@name',
+                    catalog: '@catalog',
+                    schema: '@schema',
+                    table: '@table'
+                }
+            },
+            tableMasterForeignKeyInfos: {
+                method: 'GET',
+                url: '/connections/:name/catalogs/:catalog/schemas/:schema/tables/:table/masterForeignKeyInfos',
                 params: {
                     name:'@name',
                     catalog: '@catalog',
@@ -86,6 +96,15 @@ angular.module('DataGrigApp').factory('Connections', function($resource){
                     name: '@name',
                     catalog: '@catalog'
                 }
+            },
+            queryInfos: {
+                method: 'GET',
+                url: '/connections/:name/catalogs/:catalog/queryInfos',
+                params: {
+                    name: '@name',
+                    catalog: '@catalog'
+                }
+            	
             }
 
         }

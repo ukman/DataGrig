@@ -1,5 +1,7 @@
 package com.datagrig;
 
+import java.util.List;
+
 import lombok.Data;
 
 @Data
@@ -10,7 +12,12 @@ public class ConnectionConfig {
     private String url;
     private String user;
     private String password;
-    private String catalogs;
+    
+    /**
+     * List of catalogs to be excluded.
+     */
+    private List<String> excludeCatalogs;
+    
 
     /**
      * Alias query should return true/false for alias name as the only param.

@@ -1,5 +1,6 @@
 package com.datagrig.controllers;
 
+import com.akiban.sql.StandardException;
 import com.datagrig.pojo.*;
 import com.datagrig.services.ConfigService;
 import com.datagrig.services.ConnectionService;
@@ -37,19 +38,19 @@ public class ConnectionController {
         return connectionService.getSchemas(connectionName, catalog);
     }
 
-    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/{schema}", method = RequestMethod.GET)
+    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas/{schema}", method = RequestMethod.GET)
     public List<TableMetadata> getTables(@PathVariable("connectionName") String connectionName,
                                          @PathVariable("catalog") String catalog,
                                          @PathVariable("schema") String schema) throws SQLException, IOException {
         return connectionService.getTables(connectionName, catalog, schema);
     }
 
-    @RequestMapping(path="/{connectionName}/{catalog}/connect", method = RequestMethod.POST)
+    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/connect", method = RequestMethod.POST)
     public void connect(@PathVariable("connectionName") String connectionName, @PathVariable("catalog") String catalog) throws SQLException, IOException, ClassNotFoundException {
         connectionService.connect(connectionName, catalog);
     }
 
-    @RequestMapping(path="/{connectionName}/{catalog}/disconnect", method = RequestMethod.POST)
+    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/disconnect", method = RequestMethod.POST)
     public void disconnect(@PathVariable("connectionName") String connectionName, @PathVariable("catalog") String catalog) throws SQLException, IOException, ClassNotFoundException {
         connectionService.disconnect(connectionName, catalog);
     }
@@ -59,7 +60,7 @@ public class ConnectionController {
         return connectionService.executeQuery(connectionName, catalog, sql);
     }
 
-    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/{schema}/{table}/data", method = RequestMethod.GET)
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/data", method = RequestMethod.GET)
     public QueryResult getTableData(@PathVariable("connectionName") String connectionName,
                                     @PathVariable("catalog") String catalog,
                                     @PathVariable("schema") String schema,
@@ -71,7 +72,7 @@ public class ConnectionController {
         return connectionService.getTableData(connectionName, catalog, schema, table, condition, order, asc);
     }
 
-    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/{schema}/{table}/columns", method = RequestMethod.GET)
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/columns", method = RequestMethod.GET)
     public List<ColumnMetaData> getColumns(@PathVariable("connectionName") String connectionName,
                                            @PathVariable("catalog") String catalog,
                                            @PathVariable("schema") String schema,
@@ -79,12 +80,12 @@ public class ConnectionController {
         return connectionService.getColumns(connectionName, catalog, schema, table);
     }
 
-    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/{schema}/{table}/detailsForeignKeys", method = RequestMethod.GET)
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/detailsForeignKeys", method = RequestMethod.GET)
     public List<ForeignKeyMetaData> getDetailsForeignKeys(@PathVariable("connectionName") String connectionName,
                                                           @PathVariable("catalog") String catalog,
                                                           @PathVariable("schema") String schema,
                                                           @PathVariable("table") String table) throws SQLException, IOException {
-        List<ForeignKeyMetaData> nativeMetadata = connectionService.getDetailsForeignKeys(connectionName, catalog, schema, table);
+        List<ForeignKeyMetaData> nativeMetadata = connectionService.getDetailForeignKeys(connectionName, catalog, schema, table);
         // Add custom foreign keys
         Optional<ForeignKeyMetaData[]> customMetadata = configService.getCustomForeignKeys(connectionName);
         List<ForeignKeyMetaData> metadata = new ArrayList(nativeMetadata);
@@ -92,7 +93,7 @@ public class ConnectionController {
         return metadata;
     }
 
-    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/{schema}/{table}/masterForeignKeys", method = RequestMethod.GET)
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/masterForeignKeys", method = RequestMethod.GET)
     public List<ForeignKeyMetaData> getMasterForeignKeys(@PathVariable("connectionName") String connectionName,
                                                          @PathVariable("catalog") String catalog,
                                                          @PathVariable("schema") String schema,
@@ -107,7 +108,27 @@ public class ConnectionController {
         return metadata;
     }
 
-    @RequestMapping(path = "/{connectionName1}/{catalog1}/{schema1}/compareWith/{connectionName2}/{catalog2}/{schema2}")
+    /**
+     * Calculates count of rows in other tables that referencing row in the table with given id.
+     * @param connectionName
+     * @param catalog
+     * @param schema
+     * @param table
+     * @param id
+     * @return
+     * @throws SQLException 
+     * @throws IOException 
+     */
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/masterForeignKeyInfos", method = RequestMethod.GET)
+    public Map<String, Integer> getMasterForeignKeyInfos(@PathVariable("connectionName") String connectionName,
+                                                        @PathVariable("catalog") String catalog,
+                                                        @PathVariable("schema") String schema,
+                                                        @PathVariable("table") String table,
+                                                        @RequestParam("id") String id) throws IOException, SQLException {
+        return connectionService.getMasterForeignKeyInfos(connectionName, catalog, schema, table, id);
+    }
+
+    @RequestMapping(path = "/{connectionName1}/catalogs/{catalog1}/schemas/{schema1}/compareWith/{connectionName2}/catalogs/{catalog2}/schemas/{schema2}")
     public List<String> compare(@PathVariable("connectionName1") String connectionName1,
                         @PathVariable("catalog1") String catalog1,
                         @PathVariable("schema1") String schema1,
@@ -143,8 +164,8 @@ public class ConnectionController {
         // Check indexes
         for(TableMetadata table : tables1) {
             if(!missedTables1.contains(table.getName())) {
-                List<ForeignKeyMetaData> keys1 = connectionService.getDetailsForeignKeys(connectionName1, catalog1, schema1, table.getName());
-                List<ForeignKeyMetaData> keys2 = connectionService.getDetailsForeignKeys(connectionName2, catalog2, schema2, table.getName());
+                List<ForeignKeyMetaData> keys1 = connectionService.getDetailForeignKeys(connectionName1, catalog1, schema1, table.getName());
+                List<ForeignKeyMetaData> keys2 = connectionService.getDetailForeignKeys(connectionName2, catalog2, schema2, table.getName());
                 Set<String> missedIndexes1 = connectionService.getMissed(keys1, keys2, mt -> {return ((ForeignKeyMetaData)mt).getFkFieldNameInDetailsTable() + "->" + ((ForeignKeyMetaData)mt).getMasterTable();});
                 Set<String> missedIndexes2 = connectionService.getMissed(keys2, keys1, mt -> {return ((ForeignKeyMetaData)mt).getFkFieldNameInDetailsTable() + "->" + ((ForeignKeyMetaData)mt).getMasterTable();});
                 notes.addAll(missedIndexes1.stream().map(t -> "Missed index " + t + " in table " + table.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2).collect(Collectors.toList()));
@@ -153,5 +174,14 @@ public class ConnectionController {
         }
 
         return notes;
+    }
+
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/queryInfos", method = RequestMethod.GET)
+    public QueryInfo getQueryInfo(
+    		@PathVariable("connectionName") String connectionName,
+    		@PathVariable("catalog") String catalog,
+    		@RequestParam("query") String query
+    		) throws SQLException, IOException, StandardException {
+    	return connectionService.getQueryInfo(connectionName, catalog, query);
     }
 }

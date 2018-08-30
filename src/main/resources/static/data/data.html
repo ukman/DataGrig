@@ -1,6 +1,7 @@
 <style>
     .cell-value {
         max-width: 500px;
+        max-height: 200px;
         overflow: auto;
     }
     .asc {
@@ -57,29 +58,34 @@
             <tbody>
             <tr ng-repeat="row in data.data">
                 <td></td>
-                <td ng-repeat="col in data.metaData" title="{{col.name}}"
+                <td ng-repeat="col in columns" title="{{col.name}}"
                     ng-if="fildsFilter == '' || col.name.match(fildsFilter)"
                 >
-                    <div class="cell-value cell-type-{{col.type}}"
-                         ng-hide="row[col.name] && findDetailsForeignKey(col.name)">
-                        {{row[col.name]}}
-                    </div>
-                    <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id='+ row[col.name]})"
-                       ng-show="row[col.name] && findDetailsForeignKey(col.name) && !findDetailsForeignKey(col.name).linker">
-                        {{row[col.name]}}
-                        <!--
-                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
-                        -->
-                    </a>
-                    <a href="{{findDetailsForeignKey(col.name).linker(row[col.name])}}"
-                       ng-show="row[col.name] && findDetailsForeignKey(col.name).linker">
-                        {{row[col.name]}}
-                        <!--
-                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
-                        -->
-                    </a>
-                    <div ng-repeat="fk in findMasterForeignKey(col.name)">
-                        <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:fk.detailsTable, condition:fk.fkFieldNameInDetailsTable + '=' + row[col.name], order:'', asc:false})">{{fk.detailsTable}}>>{{$stateParams.table}}</a>
+                    <div class="cell-value cell-type-{{col.type}}">
+                    	<span ng-hide="row[col.name] && findDetailsForeignKey(col.name)">
+                        	{{row[col.name]}}
+                        </span>
+	                    <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id='+ row[col.name]})"
+	                       ng-show="row[col.name] && findDetailsForeignKey(col.name) && !findDetailsForeignKey(col.name).linker">
+	                        {{row[col.name]}}
+	                        <!--
+	                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
+	                        -->
+	                    </a>
+	                    <a href="{{findDetailsForeignKey(col.name).linker(row[col.name])}}"
+	                       ng-show="row[col.name] && findDetailsForeignKey(col.name).linker">
+	                        {{row[col.name]}}
+	                        <!--
+	                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
+	                        -->
+	                    </a>
+	                    <div ng-repeat="fk in findMasterForeignKey(col.name)" ng-hide="row.fkInfos && row.fkInfos[fk.name] == 0">
+	                        <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:fk.detailsTable, condition:fk.fkFieldNameInDetailsTable + '=' + row[col.name], order:'', asc:false})">
+	                        	{{fk.detailsTable}}>>{{$stateParams.table}}</a><span ng-show="row.fkInfos">({{row.fkInfos[fk.name]}})</span>
+	                    </div>
+	                    <span ng-hide="row.fkInfos || !col.primaryKey" ng-click="loadFkInfos(row)" class="btn btn-link">
+	                    	Resolve
+	                    </span>
                     </div>
                 </td>
             </tr>

@@ -51,6 +51,16 @@ angular.module('DataGrigApp')
             fieldName.masterForeignKeys = keys;
             return keys;
         }
+        $scope.loadFkInfos = function(row) {
+        	row.fkInfos = Connections.tableMasterForeignKeyInfos({
+        		name:$stateParams.connection, 
+        		catalog:$stateParams.catalog, 
+        		schema: $stateParams.schema, 
+        		table:$stateParams.table,
+        		id:row.id
+        	});
+        }
+        
         $scope.sort = function(field, asc) {
             asc = asc == 'true';
             $state.go('data', {

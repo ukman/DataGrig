@@ -15,6 +15,7 @@ angular.module('DataGrigApp')
                                 console.error(error);
                                 catalog.error = error;
                             });
+                            catalog.queryInfos = Connections.queryInfos({name:con.name, catalog:catalog.name, query: $scope.query});
 
                         })
                     }, function(error){
@@ -26,6 +27,32 @@ angular.module('DataGrigApp')
 
 
             });
+            $scope.detailsForeignKeys = Connections.tableDetailsForeignKeys({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table},
+                    function(fks){
+                        fks
+                            .filter(function(fk) {
+                                return fk.linker
+                            })
+                            .forEach(function(fk){
+                            fk.linker = eval(fk.linker);
+                        });
+                        // console.log(fks);
+                    });
+            $scope.findDetailsForeignKey = function(fieldName, queryInfos) {
+                if(fieldName.detailsForeignKey) {
+                    return fieldName.detailsForeignKey;
+                }
+                if(queryInfos && queryInfos.detailForeignKeys) {
+                    for(var i = 0; i < queryInfos.detailForeignKeys.length; i++) {
+                        var fk = queryInfos.detailForeignKeys[i];
+                        if(fk.fkFieldNameInDetailsTable == fieldName) {
+                            fieldName.detailsForeignKey = fk;
+                            return fk;
+                        }
+                    }
+                }
+            }
+            
 
         }
         function preprocessData(data) {

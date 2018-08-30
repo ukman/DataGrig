@@ -64,7 +64,17 @@
                 <tr ng-repeat="row in catalog.data.data">
                     <td ng-repeat="col in metaData" title="{{col.name}}">
                         <div class="cell-value">
-                            {{row[col.name]}}
+                        	<span ng-hide="findDetailsForeignKey(col.name, catalog.queryInfos)">
+                            	{{row[col.name]}}
+                            </span>
+		                    <a ui-sref="data({ connection: con.name, catalog:catalog.name, schema: findDetailsForeignKey(col.name, catalog.queryInfos).masterSchema, table:findDetailsForeignKey(col.name, catalog.queryInfos).masterTable, condition:'id='+ row[col.name]})"
+		                       ng-show="row[col.name] && findDetailsForeignKey(col.name, catalog.queryInfos) && !findDetailsForeignKey(col.name, catalog.queryInfos).linker">
+		                        {{row[col.name]}}
+		                        <!--
+		                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
+		                        -->
+		                    </a>
+
                         </div>
                     </td>
                 </tr>
