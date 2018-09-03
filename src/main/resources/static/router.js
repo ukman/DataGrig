@@ -16,12 +16,12 @@ angular.module('DataGrigApp').config(function($stateProvider, $urlRouterProvider
             controller: 'ConnectionsCtrl'
         })
         .state('data', {
-            url: '/data/:connection/:catalog/:schema/:table?condition?order?asc',
+            url: '/data/:connection/:catalog/:schema/:table?condition?order?asc?limit?page',
             templateUrl: 'data/data.html',
             controller: 'DataCtrl'
         })
         .state('query', {
-            url: '/query',
+            url: '/query?sql',
             templateUrl: 'query/query.html',
             controller: 'QueryCtrl'
         })

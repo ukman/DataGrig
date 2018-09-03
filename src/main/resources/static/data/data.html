@@ -15,6 +15,8 @@
     <div ng-show="data">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
+                <li class="breadcrumb-item" aria-current="page"><a ui-sref="home()">Home</a></li>
+                <li class="breadcrumb-item" aria-current="page"><a ui-sref="connections()">Connections</a></li>
                 <li class="breadcrumb-item" aria-current="page">{{$stateParams.connection}}</li>
                 <li class="breadcrumb-item" aria-current="page">{{$stateParams.catalog}}</li>
                 <li class="breadcrumb-item" aria-current="page">{{$stateParams.schema}}</li>
@@ -23,18 +25,31 @@
         </nav>
         <div>
             <input type="text" name="condition" ng-model="condition" size="100"/>
-            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:condition, order:$stateParams.order, asc:$stateParams.asc})">Filter</a>
+            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:condition, order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit})">Filter</a>
+            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:'', order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit})">Clear</a>
         </div>
         <div ng-hide="data.$resolved">
             Loading...
         </div>
-        <table class="table table-striped data-table" ng-show="data.$resolved">
+        <div class="alert alert-danger" role="alert" ng-show="error">
+            {{error.data.message}}
+        </div>
+		
+        <table class="table table-striped data-table" ng-show="data.$resolved && !error">
+        	<caption>
+        		Show {{data.page * data.limit + 1}}...{{data.page * data.limit + data.data.length}} / {{data.totalCount}}
+	            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit, page:+$stateParams.page-1})">&lt;</a>
+	            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit, page:+$stateParams.page+1})">&gt;</a>
+	            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit: 10, page:0})">10</a>
+	            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit: 50, page:0})">50</a>
+	            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit: 100, page:0})">100</a>
+        	</caption>
             <thead>
             <tr>
                 <th>
                     <input ng-model="fildsFilter" title="Filds filter"/>
                 </th>
-                <th ng-repeat="col in data.metaData" ng-click="sort(col.name, $stateParams.asc)"
+                <th ng-repeat="col in columns" ng-click="sort(col.name, $stateParams.asc)"
                     ng-if="fildsFilter == '' || col.name.match(fildsFilter)"
                     ng-class="{asc:$stateParams.order == col.name && $stateParams.asc == 'true', desc:$stateParams.order == col.name && $stateParams.asc == 'false'}">
                     <div>
@@ -45,7 +60,7 @@
                     </div>
                     <div ng-show="findDetailsForeignKey(col.name)">
                         <a ng-show="$stateParams.condition"
-                           ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id in (select '+ col.name + ' from ' + $stateParams.table + ' where ' + $stateParams.condition + ')', order:null, asc:null})">
+                           ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id in (select '+ col.name + ' from ' + $stateParams.table + ' where ' + $stateParams.condition + ')', order:'', asc:''})">
                             -> {{findDetailsForeignKey(col.name).masterTable}}
                         </a>
                         <span ng-hide="$stateParams.condition"
@@ -63,9 +78,9 @@
                 >
                     <div class="cell-value cell-type-{{col.type}}">
                     	<span ng-hide="row[col.name] && findDetailsForeignKey(col.name)">
-                        	{{row[col.name]}}
+                        	<pre>{{row[col.name]}}</pre>
                         </span>
-	                    <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id='+ row[col.name]})"
+	                    <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id='+ row[col.name], order:'', asc:''})"
 	                       ng-show="row[col.name] && findDetailsForeignKey(col.name) && !findDetailsForeignKey(col.name).linker">
 	                        {{row[col.name]}}
 	                        <!--

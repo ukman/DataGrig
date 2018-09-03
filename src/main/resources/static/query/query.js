@@ -1,12 +1,14 @@
 angular.module('DataGrigApp')
     .controller('QueryCtrl', function($scope, $stateParams, $state, Connections){
-        $scope.runQuery = function() {
+    	$scope.query = $stateParams.sql;
+        $scope.runQuery = function(sql) {
             $scope.metaData = null;
+            $scope.total={};
             $scope.connections = Connections.query(function(connections){
                 connections.forEach(function(con){
                     con.catalogs = Connections.catalogs({name:con.name}, function(catalogs){
                         catalogs.forEach(function(catalog){
-                            catalog.data = Connections.executeQuery({name:con.name, catalog:catalog.name}, $scope.query, function(data){
+                            catalog.data = Connections.executeQuery({name:con.name, catalog:catalog.name}, sql, function(data){
                                 if(!$scope.metaData) {
                                     $scope.metaData = data.metaData;
                                 }
@@ -55,16 +57,25 @@ angular.module('DataGrigApp')
             
 
         }
+        if($stateParams.sql && $stateParams.sql.length > 0) {
+        	$scope.runQuery($stateParams.sql)
+        }
         function preprocessData(data) {
             for(var i = 0; i < data.data.length; i++) {
                 var row = data.data[i];
                 for(var j = 0; j < data.metaData.length; j++) {
                     var field = data.metaData[j];
+                    var value = row[field.name];
                     if(field.type == 'timestamp' || field.type == 'date') {
-                        var value = row[field.name];
                         if(Number.isInteger(value)) {
                             row[field.name] = new Date(value);
                         }
+                    }
+                    if(Number.isInteger(value) || Number.isFloat(value)) {
+	                    var sum = $scope.total[field.name];
+	                    sum = sum ? sum : 0;
+	                    sum += value;
+	                    $scope.total[field.name] = sum;
                     }
                 }
             }

@@ -1,39 +1,68 @@
 package com.datagrig.services;
 
-import com.akiban.sql.StandardException;
-import com.akiban.sql.parser.CursorNode;
-import com.akiban.sql.parser.FromList;
-import com.akiban.sql.parser.FromTable;
-import com.akiban.sql.parser.OrderByList;
-import com.akiban.sql.parser.ResultSetNode;
-import com.akiban.sql.parser.SQLParser;
-import com.akiban.sql.parser.SelectNode;
-import com.akiban.sql.parser.StatementNode;
-import com.akiban.sql.parser.TableName;
-import com.datagrig.AppConfig;
-import com.datagrig.ConnectionConfig;
-import com.datagrig.pojo.*;
-import com.zaxxer.hikari.HikariDataSource;
-import lombok.extern.slf4j.Slf4j;
+import java.io.File;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
+import javax.sql.DataSource;
+
+import org.apache.cayenne.exp.parser.ExpressionParserConstants;
+import org.apache.cayenne.exp.parser.ExpressionParserTokenManager;
+import org.apache.cayenne.exp.parser.JavaCharStream;
+import org.apache.cayenne.exp.parser.Token;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
-import org.springframework.jdbc.core.RowCallbackHandler;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
-import javax.sql.DataSource;
-import java.io.File;
-import java.io.IOException;
-import java.sql.*;
-import java.util.*;
-import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import com.akiban.sql.StandardException;
+import com.akiban.sql.parser.CursorNode;
+import com.akiban.sql.parser.FromList;
+import com.akiban.sql.parser.FromTable;
+import com.akiban.sql.parser.ResultSetNode;
+import com.akiban.sql.parser.SQLParser;
+import com.akiban.sql.parser.SelectNode;
+import com.akiban.sql.parser.StatementNode;
+import com.akiban.sql.parser.TableName;
+import com.akiban.sql.parser.ValueNode;
+import com.datagrig.AppConfig;
+import com.datagrig.ConnectionConfig;
+import com.datagrig.pojo.CatalogMetadata;
+import com.datagrig.pojo.ColumnMetaData;
+import com.datagrig.pojo.ConnectionCatalog;
+import com.datagrig.pojo.ConnectionState;
+import com.datagrig.pojo.ConnectionUrl;
+import com.datagrig.pojo.ForeignKeyMetaData;
+import com.datagrig.pojo.QueryInfo;
+import com.datagrig.pojo.QueryResult;
+import com.datagrig.pojo.SchemaMetadata;
+import com.datagrig.pojo.TableMetadata;
+import com.zaxxer.hikari.HikariDataSource;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
@@ -75,10 +104,10 @@ public class ConnectionService {
         connections.remove(connectionName + "/" + catalog);
     }
 
-    public QueryResult executeQuery(String connectionName, String catalog, String sqlQuery, Object... params) throws SQLException, IOException {
+    public QueryResult executeQuery(String connectionName, String catalog, int limit, int page, String sqlQuery, Object... params) throws SQLException, IOException {
         DataSource ds = getDataSource(connectionName, catalog);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(ds);
-        QueryResult queryResult = jdbcTemplate.query(sqlQuery, new ResultSetExtractor<QueryResult>() {
+        QueryResult queryResult = jdbcTemplate.query(sqlQuery + (limit > 0 ? " limit " + limit + " offset " + limit * page : ""), new ResultSetExtractor<QueryResult>() {
             @Override
             public QueryResult extractData(ResultSet rs) throws SQLException, DataAccessException {
                 ResultSetMetaData md = rs.getMetaData();
@@ -106,16 +135,26 @@ public class ConnectionService {
                 return queryResult;
             }
         }, params);
+        if(limit > 0) {
+        	int count = jdbcTemplate.queryForObject("select count(*) from (" + sqlQuery + ") as t", Integer.class);
+        	int mod = count % limit;
+        	int lastPage = (count - mod) / limit + (mod > 0 ? 1 : 0);
+        	queryResult.setTotalCount(count);
+        	queryResult.setPage(page);
+        	queryResult.setLastPage(lastPage);
+        	queryResult.setLimit(limit);
+        }
         return queryResult;
     }
 
-    public List<ConnectionState> getConnections() {
-        return configService.getConnectionFolders().stream().map(f -> {
+    public List<ConnectionState> getConnections(boolean brief) {
+        List<File> conFiles = configService.getConnectionFolders();
+        return conFiles.stream().map(f -> {
             ConnectionState state = ConnectionState.builder()
                     .name(f.getName())
                     .connected(connections.containsKey(f.getName()))
                     .build();
-            if(state.isConnected()) {
+            if(!brief && state.isConnected()) {
                 DataSource ds = connections.get(state.getName());
                 Connection connection = null;
                 try {
@@ -340,12 +379,67 @@ public class ConnectionService {
 
     }
 
-    public QueryResult getTableData(String connectionName, String catalog, String schema, String table, String condition, String order, boolean asc) throws SQLException, IOException {
-        return executeQuery(connectionName, catalog,"select * " +
-                "from " + schema + "." + table +
+    public QueryResult getTableData(String connectionName, String catalog, String schema, String table, String condition, int limit, int page, String order, boolean asc) throws SQLException, IOException, StandardException {
+    	String query = generateTableSelectQuery(connectionName, catalog, schema, table, condition, order, asc);
+        return executeQuery(connectionName, catalog, limit, page, query);
+    }
+    
+    private String generateTableSelectQuery(String connectionName, String catalog, String schema, String table, String condition, String order, boolean asc) throws StandardException, SQLException, IOException {
+    	String fromClause = "\"" + schema + "\".\"" + table + "\" as " + table;
+    	if(condition != null && condition.length() > 0) {
+	    	List<Token> condTokens = tokenizeSql(condition);
+	    	
+	    	for(Token condToken : condTokens) {
+	    		if(condToken.kind == ExpressionParserConstants.PROPERTY_PATH) {
+	    			String[] pathElements = condToken.image.split("\\.");
+	    			if(pathElements.length >= 2) {
+	    				ForeignKeyMetaData prevFk = null;
+		    			for(int i = 0; i < pathElements.length - 1; i++) {
+		    				String propName = pathElements[i];
+		    				String refToTable = i == 0 ? table : prevFk.getMasterTable();
+		    		    	List<ForeignKeyMetaData> fks = getDetailForeignKeys(connectionName, catalog, schema, refToTable);
+		    				List<ForeignKeyMetaData> fksToTable = fks.stream().filter(
+		    						// fk -> fk.getMasterTable().equalsIgnoreCase(tableName) || fk.getFkFieldNameInDetailsTable().startsWith(tableName)
+		    						fk -> fk.getFkFieldNameInDetailsTable().equalsIgnoreCase(propName + "_id")
+		    						).collect(Collectors.toList());
+		    				if(fksToTable.size() == 1) {
+		    					ForeignKeyMetaData fkToTable = fksToTable.get(0);
+		    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getMasterTable() + "\""  + " as " + fkToTable.getMasterTable() + 
+		    							" ON " + refToTable + "." + fkToTable.getFkFieldNameInDetailsTable() + " = " + fkToTable.getMasterTable() + "." + fkToTable.getPkFieldNameInMasterTable(); 
+		    					prevFk = fkToTable;
+		    				} else {
+		    					throw new IllegalArgumentException(String.format("Cannot resolve property name %s", propName));
+		    				}
+		    			}
+		    			condToken.image = pathElements[pathElements.length - 2] + "." + pathElements[pathElements.length - 1];
+	    			}
+	    		}
+	    	}
+    		condition = condTokens.stream().map(t -> t.image).collect(Collectors.joining(" ")); 
+	    	
+    	}
+
+		String simpleSql = "select * from " + fromClause +
                 (condition != null && condition.trim().length() > 0 ? " where " + condition : "") +
-                (order != null && order.trim().length() > 0 ? " order by " + order + (asc ? " asc" : " desc") : "") +
-                " limit 100");
+                (order != null && order.trim().length() > 0 ? " order by " + order + (asc ? " asc" : " desc") : "");
+    	log.info("SQL = " + simpleSql);
+    	return simpleSql;
+    	
+    }
+    
+    protected List<Token> tokenizeSql(String sql) {
+    	Reader reader = new StringReader(sql);
+    	JavaCharStream stream = new JavaCharStream(reader);
+		ExpressionParserTokenManager tokenManager = new ExpressionParserTokenManager(stream);
+		List<Token> tokens = new ArrayList<>();
+		Token t;
+		do {
+			t = tokenManager.getNextToken();
+			if(t.kind != ExpressionParserConstants.EOF) {
+				tokens.add(t);
+			}
+		} while(t.kind != ExpressionParserConstants.EOF);
+		return tokens;
     }
 
     public Set<String> getMissed(List list1, List list2, Function<Object, String> getName) {

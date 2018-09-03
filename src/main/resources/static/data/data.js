@@ -1,8 +1,11 @@
-angular.module('DataGrigApp')
+angular.module('dg.data.ui', [])
     .controller('DataCtrl', function($scope, $stateParams, $state, Connections){
         console.log($stateParams);
         $scope.fildsFilter = '';
-        $scope.data = Connections.tableData({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc}, preprocessData);
+        delete $scope.error; 
+        $scope.data = Connections.tableData({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit:$stateParams.limit, page:$stateParams.page}, preprocessData, function(error){
+        	$scope.error = error;
+        });	
         console.log('Data', $scope.data);
         $scope.columns = Connections.tableColumns({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table});
         $scope.detailsForeignKeys = Connections.tableDetailsForeignKeys({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table},
@@ -12,7 +15,11 @@ angular.module('DataGrigApp')
                         return fk.linker
                     })
                     .forEach(function(fk){
-                    fk.linker = eval(fk.linker);
+                    	try {
+                    		fk.linker = eval(fk.linker);
+                    	}catch(e){
+                    		console.error('Error trying to compile ' + fk.linker, e);
+                    	}
                 });
                 console.log(fks);
             });
@@ -71,8 +78,10 @@ angular.module('DataGrigApp')
                 schema: $stateParams.schema,
                 table: $stateParams.table,
                 condition: $stateParams.condition,
+                limit: $stateParams.limit
             });
         }
+        
         function preprocessData(data) {
             for(var i = 0; i < data.data.length; i++) {
                 var row = data.data[i];
@@ -87,5 +96,4 @@ angular.module('DataGrigApp')
                 }
             }
         }
-
     });

@@ -43,7 +43,9 @@ angular.module('DataGrigApp').factory('Connections', function($resource){
                     catalog: '@catalog',
                     schema: '@schema',
                     table: '@table',
-                    condition: '@condition'
+                    condition: '@condition',
+                    limit: '@limit',
+                    page: '@page'
                 }
             },
             tableColumns: {

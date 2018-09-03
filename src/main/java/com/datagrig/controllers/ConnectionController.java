@@ -1,22 +1,40 @@
 package com.datagrig.controllers;
 
-import com.akiban.sql.StandardException;
-import com.datagrig.pojo.*;
-import com.datagrig.services.ConfigService;
-import com.datagrig.services.ConnectionService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.*;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLConnection;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletResponse;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.akiban.sql.StandardException;
+import com.datagrig.pojo.CatalogMetadata;
+import com.datagrig.pojo.ColumnMetaData;
+import com.datagrig.pojo.ConnectionState;
+import com.datagrig.pojo.ForeignKeyMetaData;
+import com.datagrig.pojo.QueryInfo;
+import com.datagrig.pojo.QueryResult;
+import com.datagrig.pojo.SchemaMetadata;
+import com.datagrig.pojo.TableMetadata;
+import com.datagrig.services.ConfigService;
+import com.datagrig.services.ConnectionService;
 
 @RestController
 @RequestMapping("/connections")
@@ -29,8 +47,8 @@ public class ConnectionController {
     private ConfigService configService;
 
     @RequestMapping(path="", method = RequestMethod.GET)
-    public List<ConnectionState> getConnections() {
-        return connectionService.getConnections();
+    public List<ConnectionState> getConnections(@RequestParam(name="brief", required=false, defaultValue="true") boolean brief) {
+        return connectionService.getConnections(brief);
     }
 
     @RequestMapping(path="/{connectionName}/catalogs", method = RequestMethod.GET)
@@ -63,7 +81,7 @@ public class ConnectionController {
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/execute", method = RequestMethod.POST)
     public QueryResult executeQuery(@PathVariable("connectionName") String connectionName, @PathVariable("catalog") String catalog, @RequestBody String sql) throws SQLException, IOException, ClassNotFoundException {
-        return connectionService.executeQuery(connectionName, catalog, sql);
+        return connectionService.executeQuery(connectionName, catalog, 0, 0, sql);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/data", method = RequestMethod.GET)
@@ -72,10 +90,12 @@ public class ConnectionController {
                                     @PathVariable("schema") String schema,
                                     @PathVariable("table") String table,
                                     @RequestParam(name = "condition", required = false, defaultValue = "")String condition,
+                                    @RequestParam(name = "limit", required = false, defaultValue = "10")int limit,
+                                    @RequestParam(name = "page", required = false, defaultValue = "0")int page,
                                     @RequestParam(name = "order", required = false, defaultValue = "")String order,
                                     @RequestParam(name = "asc", required = false, defaultValue = "true")boolean asc
-                                                      ) throws SQLException, IOException {
-        return connectionService.getTableData(connectionName, catalog, schema, table, condition, order, asc);
+                                                      ) throws SQLException, IOException, StandardException {
+        return connectionService.getTableData(connectionName, catalog, schema, table, condition, limit, page, order, asc);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/columns", method = RequestMethod.GET)
