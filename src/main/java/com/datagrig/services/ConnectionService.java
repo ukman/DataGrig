@@ -114,9 +114,9 @@ public class ConnectionService {
                 List<Map<String, Object>> records = new ArrayList<>();
                 while (rs.next()) {
                     Map<String, Object> record = new HashMap<>();
-                    for (int i = 0; i < md.getColumnCount(); i++) {
-                        String fieldName = md.getColumnName(i + 1);
-                        Object value = rs.getObject(i + 1);
+                    for (int i = md.getColumnCount(); i > 0; i--) {
+                        String fieldName = md.getColumnName(i);
+                        Object value = rs.getObject(i);
                         if(!(value instanceof byte[])) { // Skip BLOBs
                         	record.put(fieldName, value);
                         }
