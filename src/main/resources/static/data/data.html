@@ -25,8 +25,8 @@
         </nav>
         <div>
             <input type="text" name="condition" ng-model="condition" size="100"/>
-            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:condition, order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit})">Filter</a>
-            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:'', order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit})">Clear</a>
+            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:condition, order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit, page:0})">Filter</a>
+            <a class="btn btn-info" ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:'', order:$stateParams.order, asc:$stateParams.asc, limit: $stateParams.limit, page:0})">Clear</a>
         </div>
         <div ng-hide="data.$resolved">
             Loading...
@@ -60,7 +60,7 @@
                     </div>
                     <div ng-show="findDetailsForeignKey(col.name)">
                         <a ng-show="$stateParams.condition"
-                           ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id in (select '+ col.name + ' from ' + $stateParams.table + ' where ' + $stateParams.condition + ')', order:'', asc:''})">
+                           ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id in (select '+ col.name + ' from ' + $stateParams.table + ' where ' + $stateParams.condition + ')', order:'', asc:'', page:0})">
                             -> {{findDetailsForeignKey(col.name).masterTable}}
                         </a>
                         <span ng-hide="$stateParams.condition"
@@ -80,7 +80,7 @@
                     	<span ng-hide="row[col.name] && findDetailsForeignKey(col.name)">
                         	<pre>{{row[col.name]}}</pre>
                         </span>
-	                    <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id='+ row[col.name], order:'', asc:''})"
+	                    <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:findDetailsForeignKey(col.name).masterTable, condition:'id='+ row[col.name], order:'', asc:'', page:0})"
 	                       ng-show="row[col.name] && findDetailsForeignKey(col.name) && !findDetailsForeignKey(col.name).linker">
 	                        {{row[col.name]}}
 	                        <!--
@@ -95,7 +95,7 @@
 	                        -->
 	                    </a>
 	                    <div ng-repeat="fk in findMasterForeignKey(col.name)" ng-hide="row.fkInfos && row.fkInfos[fk.name] == 0">
-	                        <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:fk.detailsTable, condition:fk.fkFieldNameInDetailsTable + '=' + row[col.name], order:'', asc:false})">
+	                        <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:fk.detailsTable, condition:fk.fkFieldNameInDetailsTable + '=' + row[col.name], order:'', asc:false, page:0})">
 	                        	{{fk.detailsTable}}({{fk.fkFieldNameInDetailsTable}})>>{{$stateParams.table}}</a><span ng-show="row.fkInfos">({{row.fkInfos[fk.name]}})</span>
 	                    </div>
 	                    <span ng-hide="row.fkInfos || !col.primaryKey" ng-click="loadFkInfos(row)" class="btn btn-link">
