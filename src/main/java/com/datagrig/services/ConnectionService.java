@@ -386,6 +386,7 @@ public class ConnectionService {
     
     private String generateTableSelectQuery(String connectionName, String catalog, String schema, String table, String condition, String order, boolean asc) throws StandardException, SQLException, IOException {
     	String fromClause = "\"" + schema + "\".\"" + table + "\" as " + table;
+    	
     	if(condition != null && condition.length() > 0) {
 	    	List<Token> condTokens = tokenizeSql(condition);
 	    	
@@ -407,8 +408,26 @@ public class ConnectionService {
 		    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getMasterTable() + "\""  + " as " + fkToTable.getMasterTable() + 
 		    							" ON " + refToTable + "." + fkToTable.getFkFieldNameInDetailsTable() + " = " + fkToTable.getMasterTable() + "." + fkToTable.getPkFieldNameInMasterTable(); 
 		    					prevFk = fkToTable;
-		    				} else {
+		    				} else if(fksToTable.size() > 1){
 		    					throw new IllegalArgumentException(String.format("Cannot resolve property name %s", propName));
+		    				} else {
+		    					// Trying to resolve through master fks
+		    					List<ForeignKeyMetaData> masterFks = getMasterForeignKeys(connectionName, catalog, schema, refToTable);
+			    				List<ForeignKeyMetaData> masterFksToTable = masterFks.stream().filter(
+			    						// fk -> fk.getMasterTable().equalsIgnoreCase(tableName) || fk.getFkFieldNameInDetailsTable().startsWith(tableName)
+			    						fk -> (fk.getDetailsTable() + "s").equalsIgnoreCase(propName)
+			    						).collect(Collectors.toList());
+			    				if(masterFksToTable.size() == 1) {
+			    					ForeignKeyMetaData fkToTable = masterFksToTable.get(0);
+			    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getDetailsTable() + "\""  + " as " + fkToTable.getDetailsTable() + 
+			    							" ON " + refToTable + "." + fkToTable.getPkFieldNameInMasterTable() + " = " + fkToTable.getDetailsTable() + "." + fkToTable.getFkFieldNameInDetailsTable(); 
+			    					prevFk = fkToTable;
+			    					pathElements[i] = fkToTable.getDetailsTable();
+			    					
+			    				} else {
+			    					throw new IllegalArgumentException(String.format("Cannot resolve property name %s", propName));
+			    				}
+		    					
 		    				}
 		    			}
 		    			condToken.image = pathElements[pathElements.length - 2] + "." + pathElements[pathElements.length - 1];
@@ -421,7 +440,7 @@ public class ConnectionService {
 
 		String simpleSql = "select * from " + fromClause +
                 (condition != null && condition.trim().length() > 0 ? " where " + condition : "") +
-                (order != null && order.trim().length() > 0 ? " order by " + order + (asc ? " asc" : " desc") : "");
+                (order != null && order.trim().length() > 0 ? " order by " + table + "." + order + (asc ? " asc" : " desc") : "");
     	log.info("SQL = " + simpleSql);
     	return simpleSql;
     	
