@@ -411,12 +411,18 @@ public class ConnectionService {
 		    				} else if(fksToTable.size() > 1){
 		    					throw new IllegalArgumentException(String.format("Cannot resolve property name %s", propName));
 		    				} else {
+			    				refToTable = i == 0 ? table : prevFk.getDetailsTable();
 		    					// Trying to resolve through master fks
 		    					List<ForeignKeyMetaData> masterFks = getMasterForeignKeys(connectionName, catalog, schema, refToTable);
 			    				List<ForeignKeyMetaData> masterFksToTable = masterFks.stream().filter(
 			    						// fk -> fk.getMasterTable().equalsIgnoreCase(tableName) || fk.getFkFieldNameInDetailsTable().startsWith(tableName)
 			    						fk -> (fk.getDetailsTable() + "s").equalsIgnoreCase(propName)
 			    						).collect(Collectors.toList());
+			    				
+			    				String finalRefToTable = refToTable;
+			    				if(masterFksToTable.size() > 1) {
+			    					masterFksToTable = masterFksToTable.stream().filter(fk -> fk.getFkFieldNameInDetailsTable().equalsIgnoreCase(finalRefToTable + "_id")).collect(Collectors.toList());
+			    				}
 			    				if(masterFksToTable.size() == 1) {
 			    					ForeignKeyMetaData fkToTable = masterFksToTable.get(0);
 			    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getDetailsTable() + "\""  + " as " + fkToTable.getDetailsTable() + 
@@ -431,6 +437,8 @@ public class ConnectionService {
 		    				}
 		    			}
 		    			condToken.image = pathElements[pathElements.length - 2] + "." + pathElements[pathElements.length - 1];
+	    			} else {
+	    				condToken.image = table + "." + pathElements[pathElements.length - 1];
 	    			}
 	    		}
 	    	}
