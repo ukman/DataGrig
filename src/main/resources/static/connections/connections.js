@@ -1,5 +1,5 @@
-angular.module('dg.connections.ui', [])
-    .controller('ConnectionsCtrl', function($scope, $stateParams, $state, Connections){
+angular.module('dg.controllers.connection', [])
+    .controller('ConnectionsCtrl', function($scope, $stateParams, $state, Connections, ConfigConnections){
         $scope.connections = Connections.query();
         $scope.connect = function(con) {
             if(!con.connected) {
@@ -45,5 +45,50 @@ angular.module('dg.connections.ui', [])
 	            table.masterForeignKeys = Connections.tableMasterForeignKeys({name:con.name, catalog:catalog.name, schema: schema.name, table:table.name});
         	}
         }
+        $scope.deleteConnection = function(connectionName) {
+        	if(confirm('Are you sure you want to delete connection ' + connectionName)) {
+	        	ConfigConnections.remove({name:connectionName}, function(){
+	        		for(var idx = 0; idx < $scope.connections.length; idx++) {
+	        			var con = $scope.connections[idx];
+	        			if(con.name == connectionName) {
+	        				$scope.connections.splice(idx, 1);
+	        				break;
+	        			}
+	        		}
+	        	}, function(error){
+	        		console.log(error);
+	        		alert("Can not delete connection.")
+	        	});
+        	}
+        }
+    })
+
+    .controller('EditConnectionCtrl', function($scope, $stateParams, $state, ConfigConnections){
+    	if($stateParams.name && $stateParams.name.trim().length > 0) {
+    		$scope.connection = ConfigConnections.get({name:$stateParams.name}, function(){
+    			$scope.connection.name = $stateParams.name;
+    			$scope.connection.excludeCatalogs = $scope.connection.excludeCatalogs ? $scope.connection.excludeCatalogs : []; 
+    		});
+    		
+    	}
+    	$scope.saveConnection = function() {
+    		ConfigConnections.save($scope.connection, function(){
+    			$state.go('editConnection', {name:$scope.connection.name})
+    		});
+    	}
+    	$scope.testConnection = function() {
+    		delete $scope.connectionOk;
+    		delete $scope.connectionError;
+    		$scope.testing = true;
+    		$scope.testResult = ConfigConnections.testConnection($scope.connection, function(){
+    			$scope.testing = false;
+    			$scope.connectionOk = true;
+    		}, function(error){
+    			$scope.testing = false;
+    			$scope.connectionOk = false;
+    			console.error(error);
+    			$scope.connectionError = error;
+    		});
+    	}
     })
 ;

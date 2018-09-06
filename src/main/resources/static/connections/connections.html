@@ -1,5 +1,7 @@
 <div>
     Connections <span ng-show="connections && connections.length > 0">({{connections.length}})</span>
+    <a class="btn btn-link" ui-sref="editConnection({name:''})">New</a>
+    
 </div>
 <ul>
     <li ng-repeat="con in connections" class="connection">
@@ -10,6 +12,8 @@
             {{con.databaseProductVersion}}
             <span ng-show="con.catalogs.length > 0">({{con.catalogs.length}})</span>
         </span>
+        <a class="btn btn-link" ui-sref="editConnection({name:con.name})">Edit</a>
+        <span class="btn btn-link" ng-click="deleteConnection(con.name)">Delete</span>
         <ul>
         	<li ng-show="con.catalogs && !con.catalogs.$resolved">
         		Loading...

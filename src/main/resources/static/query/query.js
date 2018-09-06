@@ -1,4 +1,4 @@
-angular.module('DataGrigApp')
+angular.module('dg.controllers.query', [])
     .controller('QueryCtrl', function($scope, $stateParams, $state, Connections){
     	$scope.query = $stateParams.sql;
         $scope.runQuery = function(sql) {

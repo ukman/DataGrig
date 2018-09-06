@@ -1,0 +1,58 @@
+<div class="col-md-8 order-md-1">
+	<h4>Connection</h4>
+	<form>
+		<div class="row">
+			<div class="col-md-6 mb-3">
+				<label for="name">Name</label>
+				<input type="text" class="form-control" id="name" placeholder="" value="" required ng-model="connection.name">
+			</div>
+			<div class="col-md-6 mb-3">
+				<label for="driver">Driver</label>
+				<input type="text" class="form-control" id="driver" placeholder="" value="" required ng-model="connection.driver">
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-12">
+				<label for="url">URL</label>
+				<input type="text" class="form-control" id="url" placeholder="" value="" required ng-model="connection.url">
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-6 mb-3">
+				<label for="user">User</label>
+				<input type="text" class="form-control" id="user" placeholder="" value="" required ng-model="connection.user">
+			</div>
+			<div class="col-md-6 mb-3">
+				<label for="password">Password</label>
+				<input type="text" class="form-control" id="password" placeholder="" value="" required ng-model="connection.password">
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-12 mb-3">
+				<label for="aliasQuery">Alias Query</label>
+				<textarea class="form-control" rows="5" id="aliasQuery" ng-model='connection.aliasQuery'></textarea>
+			</div>
+		</div>
+		<div class="row">
+			<label for="aliasQuery">Exclude catalogs</label>
+		</div>
+		<div class="row" ng-repeat="cat in connection.excludeCatalogs">
+			<span class="">{{cat}}</span>
+			<span class="btn btn-link" ng-click="connection.excludeCatalogs.splice($index, 1)">Remove</span>
+		</div>
+		<div class="row">
+			<input type="text" ng-model="newCatalog">
+			<span class="btn btn-link" ng-click="connection.excludeCatalogs.push(newCatalog);newCatalog=''">Add</span>
+		</div>
+		<div class="row">
+			<div class="col-md-6 mb-3">
+				<input type="submit" class="btn btn-success" value="Save" ng-click="saveConnection()">
+				<button class="btn btn-info" ng-click="testConnection()">Test connection</button>
+				<div ng-show="testing">Testing...</div>
+				<div class="alert alert-danger" ng-show="connectionError">{{connectionError.data.exception}} {{connectionError.data.message}}</div>
+				<div class="alert alert-success" ng-show="connectionOk">Success <span ng-show="testResult.alias">Alias = '{{testResult.alias}}'</span></div>
+				
+			</div>
+		</div>
+	</form>
+</div>

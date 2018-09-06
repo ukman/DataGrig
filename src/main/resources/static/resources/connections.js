@@ -1,4 +1,4 @@
-angular.module('DataGrigApp').factory('Connections', function($resource){
+angular.module('dg.resources.Connections', []).factory('Connections', function($resource){
     return $resource('/connections/:name',
         {name:'@name'},
         {

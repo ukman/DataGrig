@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletResponse;
@@ -144,13 +145,15 @@ public class ConnectionController {
      * @return
      * @throws SQLException 
      * @throws IOException 
+     * @throws ExecutionException 
+     * @throws InterruptedException 
      */
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/masterForeignKeyInfos", method = RequestMethod.GET)
     public Map<String, Integer> getMasterForeignKeyInfos(@PathVariable("connectionName") String connectionName,
                                                         @PathVariable("catalog") String catalog,
                                                         @PathVariable("schema") String schema,
                                                         @PathVariable("table") String table,
-                                                        @RequestParam("id") String id) throws IOException, SQLException {
+                                                        @RequestParam("id") String id) throws IOException, SQLException, InterruptedException, ExecutionException {
         return connectionService.getMasterForeignKeyInfos(connectionName, catalog, schema, table, id);
     }
 

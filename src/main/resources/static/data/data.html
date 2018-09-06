@@ -98,7 +98,7 @@
 	                        <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:fk.detailsTable, condition:fk.fkFieldNameInDetailsTable + '=' + row[col.name], order:'', asc:false, page:0})">
 	                        	{{fk.detailsTable}}({{fk.fkFieldNameInDetailsTable}})>>{{$stateParams.table}}</a><span ng-show="row.fkInfos">({{row.fkInfos[fk.name]}})</span>
 	                    </div>
-	                    <span ng-hide="row.fkInfos || !col.primaryKey" ng-click="loadFkInfos(row)" class="btn btn-link">
+	                    <span ng-show="findMasterForeignKey(col.name).length > 0 && !row.fkInfos && col.primaryKey" ng-click="loadFkInfos(row)" class="btn btn-link">
 	                    	Resolve
 	                    </span>
                     </div>

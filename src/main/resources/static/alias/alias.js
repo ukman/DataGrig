@@ -1,4 +1,4 @@
-angular.module('DataGrigApp')
+angular.module('dg.controllers.alias', [])
     .controller('AliasCtrl', function($scope, $stateParams, $state, Aliases) {
         $scope.aliasName = $stateParams.alias;
         $scope.alias = Aliases.get({name:$stateParams.alias}, function(connectionCatalog){

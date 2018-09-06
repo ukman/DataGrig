@@ -1,4 +1,4 @@
-angular.module('dg.data.ui', [])
+angular.module('dg.controllers.data', [])
     .controller('DataCtrl', function($scope, $stateParams, $state, Connections){
         console.log($stateParams);
         $scope.fildsFilter = '';

@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -523,7 +525,7 @@ public class ConnectionService {
         return Optional.empty();
     }
 
-    public Map<String, Integer> getMasterForeignKeyInfos(String connectionName, String catalog, String schema, String table, String id) throws IOException, SQLException {
+    public Map<String, Integer> getMasterForeignKeyInfos(String connectionName, String catalog, String schema, String table, String id) throws IOException, SQLException, InterruptedException, ExecutionException {
         Map<String, Integer> infos = new HashMap();
         List<ForeignKeyMetaData> keys = getMasterForeignKeys(connectionName, catalog, schema, table);
         List<ColumnMetaData> cols = getColumns(connectionName, catalog, schema, table);
@@ -542,14 +544,20 @@ public class ConnectionService {
                 || pkCol.getTypeId() == Types.NUMERIC) {
             oId = Integer.parseInt(String.valueOf(id));
         }
+        Object finalOid = oId;
         DataSource ds = getDataSource(connectionName, catalog);
         JdbcTemplate template = new JdbcTemplate(ds);
-        for(ForeignKeyMetaData key : keys) {
-            String sql = "select count(*) from \"" + key.getDetailsTable() + "\" where \"" + key.getFkFieldNameInDetailsTable() + "\" = ?";
-
-            Integer count = template.queryForObject(sql, Integer.class, oId);
-            infos.put(key.getName(), count);
-        }
+        //for(ForeignKeyMetaData key : keys) {
+        ForkJoinPool customThreadPool = new ForkJoinPool(4);
+        Object object = customThreadPool.submit(
+	          () -> 
+	        
+	          keys.parallelStream().forEach(key -> {	
+	            String sql = "select count(*) from \"" + key.getDetailsTable() + "\" where \"" + key.getFkFieldNameInDetailsTable() + "\" = ?";
+	
+	            Integer count = template.queryForObject(sql, Integer.class, finalOid);
+	            infos.put(key.getName(), count);
+        })).get();
 
         return infos;
     }
