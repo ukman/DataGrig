@@ -18,6 +18,8 @@ public class ForeignKeyMetaData {
     private String masterTable;
     private String pkFieldNameInMasterTable;
     private String fkFieldNameInDetailsTable;
+    private String aliasInDetailsTable;
+    private String aliasInMasterTable;
     private String updateRule;
     private String deleteRule;
     private String linker;

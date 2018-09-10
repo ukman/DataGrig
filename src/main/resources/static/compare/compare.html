@@ -1,0 +1,21 @@
+<style>
+.severity-ERROR {
+background:#FFF0F0
+}
+.severity-WARN {
+background:#FFFFF0
+}
+.severity-INFO {
+background:#F0F0FF
+}
+</style>
+
+<h1>Compare {{$stateParams}}</h1>
+
+<div ng-show="!compareResults.$resolved">
+	Loading...
+</div>
+
+<div ng-repeat="msg in compareResults" class="severity-{{msg.severity}}">
+	{{msg.message}}
+</div>

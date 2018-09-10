@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
 
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.commons.lang.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,17 +29,23 @@ import org.springframework.web.bind.annotation.RestController;
 import com.akiban.sql.StandardException;
 import com.datagrig.pojo.CatalogMetadata;
 import com.datagrig.pojo.ColumnMetaData;
+import com.datagrig.pojo.CompareItem;
+import com.datagrig.pojo.CompareItem.Severity;
 import com.datagrig.pojo.ConnectionState;
 import com.datagrig.pojo.ForeignKeyMetaData;
 import com.datagrig.pojo.QueryInfo;
 import com.datagrig.pojo.QueryResult;
 import com.datagrig.pojo.SchemaMetadata;
+import com.datagrig.pojo.SequenceMetaData;
 import com.datagrig.pojo.TableMetadata;
 import com.datagrig.services.ConfigService;
 import com.datagrig.services.ConnectionService;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestController
 @RequestMapping("/connections")
+@Slf4j
 public class ConnectionController {
 
     @Autowired
@@ -99,12 +106,29 @@ public class ConnectionController {
         return connectionService.getTableData(connectionName, catalog, schema, table, condition, limit, page, order, asc);
     }
 
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/data/{id}", method = RequestMethod.GET)
+    public QueryResult getTableData(@PathVariable("connectionName") String connectionName,
+                                    @PathVariable("catalog") String catalog,
+                                    @PathVariable("schema") String schema,
+                                    @PathVariable("table") String table,
+                                    @PathVariable(name = "id") String id
+                                                      ) throws SQLException, IOException, StandardException {
+        return connectionService.getTableData(connectionName, catalog, schema, table, id);
+    }
+
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/columns", method = RequestMethod.GET)
     public List<ColumnMetaData> getColumns(@PathVariable("connectionName") String connectionName,
                                            @PathVariable("catalog") String catalog,
                                            @PathVariable("schema") String schema,
                                            @PathVariable("table") String table) throws SQLException, IOException {
         return connectionService.getColumns(connectionName, catalog, schema, table);
+    }
+
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/sequences", method = RequestMethod.GET)
+    public List<SequenceMetaData> getColumns(@PathVariable("connectionName") String connectionName,
+                                           @PathVariable("catalog") String catalog,
+                                           @PathVariable("schema") String schema) throws SQLException, IOException {
+        return connectionService.getSequences(connectionName, catalog, schema);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/detailsForeignKeys", method = RequestMethod.GET)
@@ -158,13 +182,13 @@ public class ConnectionController {
     }
 
     @RequestMapping(path = "/{connectionName1}/catalogs/{catalog1}/schemas/{schema1}/compareWith/{connectionName2}/catalogs/{catalog2}/schemas/{schema2}")
-    public List<String> compare(@PathVariable("connectionName1") String connectionName1,
+    public List<CompareItem> compare(@PathVariable("connectionName1") String connectionName1,
                         @PathVariable("catalog1") String catalog1,
                         @PathVariable("schema1") String schema1,
                         @PathVariable("connectionName2") String connectionName2,
                         @PathVariable("catalog2") String catalog2,
                         @PathVariable("schema2") String schema2) throws SQLException, IOException {
-        List<String> notes = new ArrayList<>();
+        List<CompareItem> notes = new ArrayList<>();
 
         List<TableMetadata> tables1 = connectionService.getTables(connectionName1, catalog1, schema1);
         List<TableMetadata> tables2 = connectionService.getTables(connectionName2, catalog2, schema2);
@@ -172,11 +196,11 @@ public class ConnectionController {
         Set<String> missedTables1 = connectionService.getMissed(tables1, tables2, mt -> {return ((TableMetadata)mt).getName();});
         Set<String> missedTables2 = connectionService.getMissed(tables2, tables1, mt -> {return ((TableMetadata)mt).getName();});
 
-        notes.add("Missed " + missedTables2.size() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1);
-        notes.addAll(missedTables2.stream().map(t -> "Missed table " + t + " in " + connectionName1 + "/" + catalog1 + "/" + schema1).collect(Collectors.toList()));
+        notes.add(CompareItem.builder().severity(Severity.INFO).message("Missed " + missedTables2.size() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1).build());
+        notes.addAll(missedTables2.stream().map(t -> CompareItem.builder().message("Missed table " + t + " in " + connectionName1 + "/" + catalog1 + "/" + schema1).severity(Severity.ERROR).build()).collect(Collectors.toList()));
 
-        notes.add("Missed " + missedTables1.size() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2);
-        notes.addAll(missedTables1.stream().map(t -> "Missed table " + t + " in " + connectionName2 + "/" + catalog2 + "/" + schema2).collect(Collectors.toList()));
+        notes.add(CompareItem.builder().severity(Severity.INFO).message("Missed " + missedTables1.size() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2).build());
+        notes.addAll(missedTables1.stream().map(t -> CompareItem.builder().severity(Severity.ERROR).message("Missed table " + t + " in " + connectionName2 + "/" + catalog2 + "/" + schema2).build()).collect(Collectors.toList()));
 
         // Check fields
         for(TableMetadata table : tables1) {
@@ -185,8 +209,65 @@ public class ConnectionController {
                 List<ColumnMetaData> cols2 = connectionService.getColumns(connectionName2, catalog2, schema2, table.getName());
                 Set<String> missedCol1 = connectionService.getMissed(cols1, cols2, mt -> {return ((ColumnMetaData)mt).getName();});
                 Set<String> missedCol2 = connectionService.getMissed(cols2, cols1, mt -> {return ((ColumnMetaData)mt).getName();});
-                notes.addAll(missedCol1.stream().map(c -> "Missed column " + c + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName()).collect(Collectors.toList()));
-                notes.addAll(missedCol2.stream().map(c -> "Missed column " + c + " in " + connectionName1 + "/" + catalog1 + "/" + schema1 + "/" + table.getName()).collect(Collectors.toList()));
+                notes.addAll(missedCol1.stream().map(c -> CompareItem.builder().severity(Severity.ERROR).message("Missed column " + c + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName()).build()).collect(Collectors.toList()));
+                notes.addAll(missedCol2.stream().map(c -> CompareItem.builder().severity(Severity.ERROR).message("Missed column " + c + " in " + connectionName1 + "/" + catalog1 + "/" + schema1 + "/" + table.getName()).build()).collect(Collectors.toList()));
+                
+                // Check column definition
+                for(ColumnMetaData col1 : cols1) {
+                	if(!missedCol1.contains(col1.getName())) {
+                		ColumnMetaData col2 = cols2.stream().filter(c2 -> c2.getName().equals(col1.getName())).findFirst().orElseThrow(() -> {
+                			log.info("missedCol1 = " + missedCol1);
+                			log.info("missedCol2 = " + missedCol2);
+                			return new IllegalStateException(String.format("Cannot find column %s", col1.getName()));});
+                		
+                		// Check if primary key
+                		if(col1.isPrimaryKey() != col2.isPrimaryKey()) {
+                			notes.add(CompareItem.builder()
+                					.severity(Severity.ERROR)
+                					.message("Column " + col1.getName() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1 + "/" + table.getName() + (col1.isPrimaryKey() ?  " is primary key but " : " is not primary key ") +
+                							"but column " + col2.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName() + (col2.isPrimaryKey() ?  " is." : " is not."))
+                					.build());
+                		}
+                		
+                		// Check if nullable
+                		if(col1.isNullable() != col2.isNullable()) {
+                			notes.add(CompareItem.builder()
+                					.severity(Severity.ERROR)
+                					.message("Column " + col1.getName() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1 + "/" + table.getName() + (col1.isPrimaryKey() ?  " is nullable but " : " is not nullable ") +
+                							"but column " + col2.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName() + (col2.isPrimaryKey() ?  " is." : " is not."))
+                					.build());
+                		}
+                		
+                		// Check if autoIncrement
+                		if(col1.isAutoIncrement() != col2.isAutoIncrement()) {
+                			notes.add(CompareItem.builder()
+                					.severity(Severity.ERROR)
+                					.message("Column " + col1.getName() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1 + "/" + table.getName() + (col1.isPrimaryKey() ?  " is autoincremented but " : " is not autoincremented ") +
+                							"but column " + col2.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName() + (col2.isPrimaryKey() ?  " is." : " is not."))
+                					.build());
+                		}
+
+                		// Check data type
+                		if(!col1.getType().equals(col2.getType())) {
+                			Severity severity = col1.getTypeId() != col2.getTypeId() ? Severity.ERROR : Severity.WARN;
+                			notes.add(CompareItem.builder()
+                					.severity(severity)
+                					.message("Type of column " + col1.getName() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1 + "/" + table.getName() + " is " + col1.getType() + " (typeId=" + col1.getTypeId() + ", size = " + col1.getSize() + ")" +
+                							" but type of column " + col2.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName() + " is " + col2.getType() + " (typeId=" + col2.getTypeId() + ", size = " + col2.getSize() + ")")
+                					.build());
+                			
+                		}
+                		
+                		// Check default value
+                		if(!ObjectUtils.defaultIfNull(col1.getDefaultValue(), "").equals(ObjectUtils.defaultIfNull(col2.getDefaultValue(), ""))) {
+                			notes.add(CompareItem.builder()
+                					.severity(Severity.ERROR)
+                					.message("Default value of column " + col1.getName() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1 + "/" + table.getName() + " is " + col1.getDefaultValue() +
+                							" but default value of column " + col2.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName() + " is " + col2.getDefaultValue())
+                					.build());
+                		}
+                	}
+                }
             }
         }
 
@@ -197,8 +278,8 @@ public class ConnectionController {
                 List<ForeignKeyMetaData> keys2 = connectionService.getDetailForeignKeys(connectionName2, catalog2, schema2, table.getName());
                 Set<String> missedIndexes1 = connectionService.getMissed(keys1, keys2, mt -> {return ((ForeignKeyMetaData)mt).getFkFieldNameInDetailsTable() + "->" + ((ForeignKeyMetaData)mt).getMasterTable();});
                 Set<String> missedIndexes2 = connectionService.getMissed(keys2, keys1, mt -> {return ((ForeignKeyMetaData)mt).getFkFieldNameInDetailsTable() + "->" + ((ForeignKeyMetaData)mt).getMasterTable();});
-                notes.addAll(missedIndexes1.stream().map(t -> "Missed index " + t + " in table " + table.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2).collect(Collectors.toList()));
-                notes.addAll(missedIndexes2.stream().map(t -> "Missed index " + t + " in table " + table.getName() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1).collect(Collectors.toList()));
+                notes.addAll(missedIndexes1.stream().map(t -> CompareItem.builder().severity(Severity.ERROR).message("Missed index " + t + " in table " + table.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2).build()).collect(Collectors.toList()));
+                notes.addAll(missedIndexes2.stream().map(t -> CompareItem.builder().severity(Severity.ERROR).message("Missed index " + t + " in table " + table.getName() + " in " + connectionName1 + "/" + catalog1 + "/" + schema1).build()).collect(Collectors.toList()));
             }
         }
 

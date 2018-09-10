@@ -1,5 +1,7 @@
 package com.datagrig.pojo;
 
+import org.apache.commons.lang3.ObjectUtils;
+
 import lombok.Builder;
 import lombok.Data;
 import lombok.ToString;
@@ -13,8 +15,9 @@ public class ConnectionUrl {
     private String host;
     private int port;
     private String catalog;
+    private String params;
 
     public String toUrl() {
-        return protocol + ":" + type + "://" + host + (port > 0 ? ":" + port : "") + "/" + catalog;
+        return protocol + ":" + type + "://" + host + (port > 0 ? ":" + port : "") + "/" + catalog + ObjectUtils.firstNonNull(params, "");
     }
 }

@@ -28,7 +28,11 @@
 
                     <ul>
                         <li ng-repeat="schema in catalog.schemas">
-                            <span>{{schema.name}}</span>
+                            <span ng-click="ctrl.schemaCompare1 = schema;ctrl.catalogCompare1 = catalog; ctrl.connectionCompare1 = con;">{{schema.title}}</span>
+                            <a ng-show="ctrl.schemaCompare1" 
+                            	ui-sref="compare({schema1:ctrl.schemaCompare1.name,connection1:ctrl.connectionCompare1.name,catalog1:ctrl.catalogCompare1.name,schema2:schema.name,connection2:con.name,catalog2:catalog.name})">
+                            	compare with {{ctrl.schemaCompare1.name}}
+                            </a>
                             <p ng-click="toggleTables(con, catalog, schema)">
                                 Tables <span ng-show="schema.tables.length > 0">({{schema.tables.length}})</span>
                             </p>
@@ -39,6 +43,7 @@
                                         {{table.name}}
                                     </a>
                                     size = {{table.size}}
+                                    <i title="Comment">{{table.comment}}</i>
                                     <div>
                                         <span  ng-click="toggleTableColumns(con, catalog, schema, table)">Columns</span>
                                     </div>
@@ -46,13 +51,35 @@
                                         <ul>
                                             <li ng-repeat="col in table.columns">
                                             	<i class="fas fa-columns"></i>
-                                                {{col.name}} {{col.type}} {{col.size}}
+                                                {{col.name}} {{col.type}} {{col.size}} {{col.defaultValue}}
                                                 <span ng-show="findDetailsForeignKey(table, col.name)">
                                                     -> {{findDetailsForeignKey(table, col.name).masterTable}}
                                                 </span>
+                                                <i title="Comment">{{col.comment}}</i>
                                             </li>
                                         </ul>
                                     </div>
+                                    <div>
+                                        <span  ng-click="toggleTableIndexes(con, catalog, schema, table)">Indexes</span>
+                                    </div>
+                                    <div ng-show="table.indexes">
+                                        <ul>
+                                            <li ng-repeat="index in table.indexes">
+                                            	<i class="fas fa-indent"></i>
+                                                {{index.name}}
+                                                {{index.fkFieldNameInDetailsTable}} -> {{index.masterTable}}
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    
+                                </li>
+                            </ul>
+                            <p ng-click="toggleSequences(con, catalog, schema)">
+                                Sequences <span ng-show="schema.sequences.length > 0">({{schema.sequences.length}})</span>
+                            </p>
+                            <ul>
+                                <li ng-repeat="sequence in schema.sequences">
+                                	{{sequence.name}} {{sequence.value}}
                                 </li>
                             </ul>
                         </li>

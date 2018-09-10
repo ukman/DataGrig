@@ -34,5 +34,10 @@ angular.module('DataGrigApp').config(function($stateProvider, $urlRouterProvider
             url: '/alias/:alias/:schema/:table?condition?order?asc',
             templateUrl: 'alias/alias.html',
             controller: 'AliasCtrl'
-        });
+        })
+	    .state('compare', {
+	        url: '/compare/:connection1/:catalog1/:schema1/with/:connection2/:catalog2/:schema2',
+	        templateUrl: 'compare/compare.html',
+	        controller: 'CompareCtrl'
+	    });
 });

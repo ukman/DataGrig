@@ -9,5 +9,6 @@ public class TableMetadata {
     private String name;
     private String schema;
     private String type;
+    private String comment;
     private long size;
 }

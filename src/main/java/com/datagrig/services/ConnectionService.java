@@ -12,6 +12,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,7 +25,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
@@ -35,6 +35,7 @@ import org.apache.cayenne.exp.parser.JavaCharStream;
 import org.apache.cayenne.exp.parser.Token;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.NestedRuntimeException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
@@ -49,7 +50,6 @@ import com.akiban.sql.parser.SQLParser;
 import com.akiban.sql.parser.SelectNode;
 import com.akiban.sql.parser.StatementNode;
 import com.akiban.sql.parser.TableName;
-import com.akiban.sql.parser.ValueNode;
 import com.datagrig.AppConfig;
 import com.datagrig.ConnectionConfig;
 import com.datagrig.pojo.CatalogMetadata;
@@ -61,7 +61,12 @@ import com.datagrig.pojo.ForeignKeyMetaData;
 import com.datagrig.pojo.QueryInfo;
 import com.datagrig.pojo.QueryResult;
 import com.datagrig.pojo.SchemaMetadata;
+import com.datagrig.pojo.SequenceMetaData;
 import com.datagrig.pojo.TableMetadata;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 
 import lombok.extern.slf4j.Slf4j;
@@ -70,8 +75,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ConnectionService {
 
-    private static final String CONNECTION_RE = "([^:]+):([^:]*)://([^:/]+)(:[0-9]+)?/(.*)"; //jdbc:postgresql://localhost:5432/cyfoman
+    private static final String CONNECTION_RE = "([^:]+):([^:]*)://([^:/]+)(:[0-9]+)?/([^?]*)(\\?.+)?"; //jdbc:postgresql://localhost:5432/cyfoman
     private static final Pattern CONNECTION_PATTERN = Pattern.compile(CONNECTION_RE);
+	private static final Set<String> NULLABLE_VALUES = Collections.<String>unmodifiableSet(new HashSet<String>(Arrays.asList(new String[]{"YES", "yes", "+", "1"})));
 
     @Autowired
     private AppConfig appConfig;
@@ -138,7 +144,7 @@ public class ConnectionService {
             }
         }, params);
         if(limit > 0) {
-        	int count = jdbcTemplate.queryForObject("select count(*) from (" + sqlQuery + ") as t", Integer.class);
+        	int count = jdbcTemplate.queryForObject("select count(*) from (" + sqlQuery + ") as t", Integer.class, params);
         	int mod = count % limit;
         	int lastPage = (count - mod) / limit + (mod > 0 ? 1 : 0);
         	queryResult.setTotalCount(count);
@@ -195,17 +201,21 @@ public class ConnectionService {
             ds.setPassword(configConnection.getPassword());
             connections.put(connectionName, ds);
         }
-        JdbcTemplate template = new JdbcTemplate(ds);
-        List<String> excludeCatalogs = ObjectUtils.firstNonNull(configConnection.getExcludeCatalogs(), Collections.emptyList());
-        
-        List<String> catalogNames = template.queryForList("SELECT datname as name FROM pg_database WHERE datistemplate = false", String.class);
+    	if(isPostgreDB(connectionName)) {
+	        JdbcTemplate template = new JdbcTemplate(ds);
+	        List<String> excludeCatalogs = ObjectUtils.firstNonNull(configConnection.getExcludeCatalogs(), Collections.emptyList());
+	        
+	        List<String> catalogNames = template.queryForList("SELECT datname as name FROM pg_database WHERE datistemplate = false", String.class);
+	
+	        List<CatalogMetadata> catalogs = catalogNames.stream()
+	        		.filter(catalog -> !excludeCatalogs.contains(catalog))
+	        		.map(CatalogMetadata::new).collect(Collectors.toList());
+	        return catalogs;
+    	}
+    	
+    	// return Arrays.asList(CatalogMetadata.builder().name("default").build()); 
 
-        List<CatalogMetadata> catalogs = catalogNames.stream()
-        		.filter(catalog -> !excludeCatalogs.contains(catalog))
-        		.map(CatalogMetadata::new).collect(Collectors.toList());
-        return catalogs;
-
-        /*
+        //*
         try (Connection connection = ds.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
             ResultSet catalogsRs = metadata.getCatalogs();
@@ -215,7 +225,7 @@ public class ConnectionService {
             }
             return catalogs;
         }
-        */
+        //*/
     }
 
     protected synchronized DataSource getDataSource(String connectionName, String catalog) throws IOException {
@@ -239,21 +249,45 @@ public class ConnectionService {
     }
 
     public List<SchemaMetadata> getSchemas(String connectionName, String catalog) throws SQLException, IOException {
+    	if(isPostgreDB(connectionName)) {
+	        DataSource ds = getDataSource(connectionName, catalog);
+	        try (Connection connection = ds.getConnection()) {
+	            DatabaseMetaData metadata = connection.getMetaData();
+	            ResultSet schemasRs = metadata.getSchemas();
+	            List<SchemaMetadata> schemas = new ArrayList<>();
+	            while(schemasRs.next()) {
+	                schemas.add(SchemaMetadata.builder()
+	                        .name(schemasRs.getString("TABLE_SCHEM"))
+	                        .title(schemasRs.getString("TABLE_SCHEM"))
+	                        .build());
+	            }
+	            return schemas;
+	        }
+    	}
+
+    	if(isMySQLDB(connectionName)) {
+    		List<SchemaMetadata> schemas = Arrays.asList(SchemaMetadata.builder()
+    				.title("default")
+    				.name("default")
+    				.build());
+    		return schemas;
+    	}
+
         DataSource ds = getDataSource(connectionName, catalog);
         try (Connection connection = ds.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
-            ResultSet schemasRs = metadata.getSchemas();
+            ResultSet schemaRs = metadata.getSchemas();
             List<SchemaMetadata> schemas = new ArrayList<>();
-            while(schemasRs.next()) {
-                schemas.add(SchemaMetadata.builder()
-                        .name(schemasRs.getString("TABLE_SCHEM"))
-                        .build());
+            while (schemaRs.next()) {
+                schemas.add(SchemaMetadata.builder().name(schemaRs.getString("TABLE_SCHEM")).build());
             }
             return schemas;
         }
+    	
     }
 
     public List<TableMetadata> getTables(String connectionName, String catalog, String schema) throws SQLException, IOException {
+    	boolean isMysql = isMySQLDB(connectionName);
         DataSource ds = getDataSource(connectionName, catalog);
         try (Connection connection = ds.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
@@ -264,10 +298,11 @@ public class ConnectionService {
                 String type = tablesRs.getString("TABLE_TYPE");
                 String tableSchema = tablesRs.getString("TABLE_SCHEM");
 
-                if ("TABLE".equals(type) && tableSchema.equals(tableSchema)) {
+                if ("TABLE".equals(type) && (schema.equals(tableSchema) || isMysql)) {
                     TableMetadata table = TableMetadata.builder()
                             .name(tablesRs.getString("TABLE_NAME"))
                             .schema(tablesRs.getString("TABLE_SCHEM"))
+                            .comment(tablesRs.getString("REMARKS"))
                             .type(type)
                             .build();
                     tables.add(table);
@@ -275,71 +310,133 @@ public class ConnectionService {
                 }
             }
 
-            PreparedStatement ps = connection.prepareStatement("SELECT\n" +
-                    "   relname AS \"Table\",\n" +
-                    "   pg_total_relation_size(relid) AS \"RealSize\",\n" +
-                    "   pg_size_pretty(pg_total_relation_size(relid)) AS \"Size\",\n" +
-                    "   pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS \"External Size\"\n" +
-                    "   FROM pg_catalog.pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC;");
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                String tableName = rs.getString("Table");
-                TableMetadata table = mapTables.get(tableName);
-                if (table != null) {
-                    table.setSize(rs.getLong("RealSize"));
-                }
+            if(isPostgreDB(connectionName)) {
+	            PreparedStatement ps = connection.prepareStatement("SELECT\n" +
+	                    "   relname AS \"Table\",\n" +
+	                    "   pg_total_relation_size(relid) AS \"RealSize\",\n" +
+	                    "   pg_size_pretty(pg_total_relation_size(relid)) AS \"Size\",\n" +
+	                    "   pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS \"External Size\"\n" +
+	                    "   FROM pg_catalog.pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC;");
+	            ResultSet rs = ps.executeQuery();
+	            while (rs.next()) {
+	                String tableName = rs.getString("Table");
+	                TableMetadata table = mapTables.get(tableName);
+	                if (table != null) {
+	                    table.setSize(rs.getLong("RealSize"));
+	                }
+	            }
             }
             return tables;
         }
     }
 
     public List<ColumnMetaData> getColumns(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
+    	return getColumns(connectionName, catalog, schema, table, null);
+    }
+    
+    public List<ColumnMetaData> getColumns(String connectionName, String catalog, String schema, String table, String columnPattern) throws SQLException, IOException {
         DataSource ds = getDataSource(connectionName, catalog);
+        List<ColumnMetaData> columns = new ArrayList<>();
+        
         try (Connection connection = ds.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
-            ResultSet columnsRs = metadata.getColumns(catalog, schema, table, null);
-            List<ColumnMetaData> columns = new ArrayList<>();
-            while (columnsRs.next()) {
-                columns.add(ColumnMetaData.builder()
-                        .name(columnsRs.getString("COLUMN_NAME"))
-                        .type(columnsRs.getString("TYPE_NAME"))
-                        .typeId(columnsRs.getInt("DATA_TYPE"))
-                        .size(columnsRs.getInt("COLUMN_SIZE"))
-                        .build());
+            try (ResultSet columnsRs = metadata.getColumns(catalog, schema, table, columnPattern)) {
+	            while (columnsRs.next()) {
+	            	ColumnMetaData col = createColumnMetadata(columnsRs);
+	                columns.add(col);
+	            }
             }
-            ResultSet pkRs = metadata.getPrimaryKeys(catalog, schema, table);
-            while(pkRs.next()) {
-                String colName = pkRs.getString("COLUMN_NAME");
-                columns.stream().filter(c ->c.getName().equals(colName)).findFirst().get().setPrimaryKey(true);
+            try (ResultSet pkRs = metadata.getPrimaryKeys(catalog, schema, table)) {
+	            while(pkRs.next()) {
+	                String colName = pkRs.getString("COLUMN_NAME");
+	                columns.stream().filter(c ->c.getName().equals(colName)).forEach(c -> c.setPrimaryKey(true));
+	            }
             }
-            return columns;
         }
+        return columns;
+    }
+    
+    public ColumnMetaData getColumn(String connectionName, String catalog, String schema, String table, String columnName) throws SQLException, IOException {
+    	List<ColumnMetaData> columns = getColumns(connectionName, catalog, schema, table, columnName);
+    	if(columns.size() == 1) {
+    		return columns.get(0);
+    	}
+    	throw new IllegalArgumentException(String.format("Can not find column %s in table %s", columnName, table));
+    }
+    
+    protected ColumnMetaData createColumnMetadata(ResultSet columnsRs) throws SQLException {
+		String isNullableStr = columnsRs.getString("IS_NULLABLE");
+		boolean isNullable = NULLABLE_VALUES.contains(isNullableStr);
+		String isAutoIncrementStr = columnsRs.getString("IS_AUTOINCREMENT");
+		boolean isAutoIncrement = NULLABLE_VALUES.contains(isAutoIncrementStr);
+    	return ColumnMetaData.builder()
+                .name(columnsRs.getString("COLUMN_NAME"))
+                .type(columnsRs.getString("TYPE_NAME"))
+                .typeId(columnsRs.getInt("DATA_TYPE"))
+                .size(columnsRs.getInt("COLUMN_SIZE"))
+                .comment(columnsRs.getString("REMARKS"))
+                .nullable(isNullable)
+                .autoIncrement(isAutoIncrement)
+                .defaultValue(columnsRs.getString("COLUMN_DEF"))
+                .build();
     }
 
-    public List<ForeignKeyMetaData> getDetailForeignKeys(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
+    public boolean isPostgreDB(String connectionName) throws IOException {
+    	ConnectionConfig connectionConfig = configService.getConnection(connectionName);
+		return connectionConfig.getDriver().toLowerCase().contains("postgresql");
+	}
+
+    public boolean isMySQLDB(String connectionName) throws IOException {
+    	ConnectionConfig connectionConfig = configService.getConnection(connectionName);
+		return connectionConfig.getDriver().toLowerCase().contains("mysql");
+	}
+
+	public List<ForeignKeyMetaData> getDetailForeignKeys(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
         DataSource ds = getDataSource(connectionName, catalog);
         try (Connection connection = ds.getConnection()) {
             DatabaseMetaData metadata = connection.getMetaData();
             ResultSet indexRs = metadata.getImportedKeys(catalog, schema, table);
             List<ForeignKeyMetaData> indexes = new ArrayList<>();
             while (indexRs.next()) {
-                indexes.add(ForeignKeyMetaData.builder()
-                        .name(indexRs.getString("FK_NAME"))
-                        .masterTable(indexRs.getString("PKTABLE_NAME"))
-                        .masterSchema(indexRs.getString("PKTABLE_SCHEM"))
-                        .detailsTable(indexRs.getString("FKTABLE_NAME"))
-                        .detailsSchema(indexRs.getString("FKTABLE_SCHEM"))
-                        .pkFieldNameInMasterTable(indexRs.getString("PKCOLUMN_NAME"))
-                        .fkFieldNameInDetailsTable(indexRs.getString("FKCOLUMN_NAME"))
-                        .updateRule(indexRs.getString("UPDATE_RULE"))
-                        .deleteRule(indexRs.getString("DELETE_RULE"))
-                        .build());
+            	ForeignKeyMetaData index = createIndexMetaData(connectionName, catalog, indexRs);
+                indexes.add(index);
             }
             return indexes;
         }
     }
 
-    public List<ForeignKeyMetaData> getMasterForeignKeys(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
+    private ForeignKeyMetaData createIndexMetaData(String connectionName, String catalog, ResultSet indexRs) throws SQLException, IOException {
+    	ForeignKeyMetaData index = ForeignKeyMetaData.builder()
+	        .name(indexRs.getString("FK_NAME"))
+	        .masterTable(indexRs.getString("PKTABLE_NAME"))
+	        .masterSchema(indexRs.getString("PKTABLE_SCHEM"))
+	        .detailsTable(indexRs.getString("FKTABLE_NAME"))
+	        .detailsSchema(indexRs.getString("FKTABLE_SCHEM"))
+	        .pkFieldNameInMasterTable(indexRs.getString("PKCOLUMN_NAME"))
+	        .fkFieldNameInDetailsTable(indexRs.getString("FKCOLUMN_NAME"))
+	        .updateRule(indexRs.getString("UPDATE_RULE"))
+	        .deleteRule(indexRs.getString("DELETE_RULE"))
+	        .build();
+    	processCommentForFk(connectionName, catalog, index);
+        return index;
+	}
+
+	protected void processCommentForFk(String connectionName, String catalog, ForeignKeyMetaData index) throws SQLException, IOException {
+    	ColumnMetaData fkField = getColumn(connectionName, catalog, index.getDetailsSchema(), index.getDetailsTable(), index.getFkFieldNameInDetailsTable());
+    	if(fkField.getComment() != null) {
+    		ObjectMapper mapper = createObjectMapper();
+    		try {
+    			ForeignKeyMetaData fkMD = mapper.readValue(fkField.getComment(), ForeignKeyMetaData.class);
+    			index.setAliasInDetailsTable(fkMD.getAliasInDetailsTable());
+    			index.setAliasInMasterTable(fkMD.getAliasInMasterTable());
+    		} catch (JsonParseException | JsonMappingException e) {
+    			// Not problem- just skip comment
+    			log.warn(String.format("Error parsing comment %s", fkField.getComment()), e);
+			}
+    	}
+	}
+
+	public List<ForeignKeyMetaData> getMasterForeignKeys(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
         List<ForeignKeyMetaData> indexes = getMasterForeignKeysForAllTables(connectionName, catalog, schema);
         return indexes.stream().filter(m -> table.equals(m.getMasterTable())).collect(Collectors.toList());
     }
@@ -360,17 +457,20 @@ public class ConnectionService {
                         ResultSet indexRs = metadata.getImportedKeys(catalog, schema, tableMetadata.getName());
 
                         while (indexRs.next()) {
-                            indexes.add(ForeignKeyMetaData.builder()
-                                    .name(indexRs.getString("FK_NAME"))
-                                    .masterTable(indexRs.getString("PKTABLE_NAME"))
-                                    .masterSchema(indexRs.getString("PKTABLE_SCHEM"))
-                                    .detailsTable(indexRs.getString("FKTABLE_NAME"))
-                                    .detailsSchema(indexRs.getString("FKTABLE_SCHEM"))
-                                    .pkFieldNameInMasterTable(indexRs.getString("PKCOLUMN_NAME"))
-                                    .fkFieldNameInDetailsTable(indexRs.getString("FKCOLUMN_NAME"))
-                                    .updateRule(indexRs.getString("UPDATE_RULE"))
-                                    .deleteRule(indexRs.getString("DELETE_RULE"))
-                                    .build());
+                        	ForeignKeyMetaData index = ForeignKeyMetaData.builder()
+                            .name(indexRs.getString("FK_NAME"))
+                            .masterTable(indexRs.getString("PKTABLE_NAME"))
+                            .masterSchema(indexRs.getString("PKTABLE_SCHEM"))
+                            .detailsTable(indexRs.getString("FKTABLE_NAME"))
+                            .detailsSchema(indexRs.getString("FKTABLE_SCHEM"))
+                            .pkFieldNameInMasterTable(indexRs.getString("PKCOLUMN_NAME"))
+                            .fkFieldNameInDetailsTable(indexRs.getString("FKCOLUMN_NAME"))
+                            .updateRule(indexRs.getString("UPDATE_RULE"))
+                            .deleteRule(indexRs.getString("DELETE_RULE"))
+                            .build();
+                        	processCommentForFk(connectionName, catalog, index);
+                        	
+                            indexes.add(index);
                         }
                     }
                 }
@@ -381,13 +481,27 @@ public class ConnectionService {
 
     }
 
+    public QueryResult getTableData(String connectionName, String catalog, String schema, String table, String id) throws SQLException, IOException, StandardException {
+    	List<ColumnMetaData> columns = getColumns(connectionName, catalog, schema, table);
+    	ColumnMetaData pkCol = columns.stream().filter(ColumnMetaData::isPrimaryKey).findFirst().orElseThrow(() -> new IllegalStateException(String.format("Can not find pk in table %s", table)));
+    	String query = generateTableSelectQuery(connectionName, catalog, schema, table, "", null, true);
+    	query = query + " WHERE " + String.format("\"%s\" = ?", pkCol.getName());
+    	Object oId = id;
+        if(pkCol.getTypeId() == Types.BIGINT
+                || pkCol.getTypeId() == Types.INTEGER
+                || pkCol.getTypeId() == Types.NUMERIC) {
+            oId = Integer.parseInt(String.valueOf(id));
+        }
+        return executeQuery(connectionName, catalog, 0, 0, query, oId);
+    }
+    
     public QueryResult getTableData(String connectionName, String catalog, String schema, String table, String condition, int limit, int page, String order, boolean asc) throws SQLException, IOException, StandardException {
     	String query = generateTableSelectQuery(connectionName, catalog, schema, table, condition, order, asc);
         return executeQuery(connectionName, catalog, limit, page, query);
     }
     
     private String generateTableSelectQuery(String connectionName, String catalog, String schema, String table, String condition, String order, boolean asc) throws StandardException, SQLException, IOException {
-    	String fromClause = "\"" + schema + "\".\"" + table + "\" as " + table;
+    	String fromClause = "\"" + schema + "\".\"" + table + "\" as " + table + "0";
     	
     	if(condition != null && condition.length() > 0) {
 	    	List<Token> condTokens = tokenizeSql(condition);
@@ -397,28 +511,31 @@ public class ConnectionService {
 	    			String[] pathElements = condToken.image.split("\\.");
 	    			if(pathElements.length >= 2) {
 	    				ForeignKeyMetaData prevFk = null;
+	    				String prevRefToTable = null;
 		    			for(int i = 0; i < pathElements.length - 1; i++) {
 		    				String propName = pathElements[i];
-		    				String refToTable = i == 0 ? table : prevFk.getMasterTable();
+		    				String refToTable = i == 0 ? table : prevRefToTable; // prevFk.getMasterTable();
 		    		    	List<ForeignKeyMetaData> fks = getDetailForeignKeys(connectionName, catalog, schema, refToTable);
 		    				List<ForeignKeyMetaData> fksToTable = fks.stream().filter(
 		    						// fk -> fk.getMasterTable().equalsIgnoreCase(tableName) || fk.getFkFieldNameInDetailsTable().startsWith(tableName)
-		    						fk -> fk.getFkFieldNameInDetailsTable().equalsIgnoreCase(propName + "_id")
+		    						fk -> fk.getFkFieldNameInDetailsTable().equalsIgnoreCase(propName + "_id") || propName.equalsIgnoreCase(fk.getAliasInDetailsTable())
 		    						).collect(Collectors.toList());
 		    				if(fksToTable.size() == 1) {
 		    					ForeignKeyMetaData fkToTable = fksToTable.get(0);
-		    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getMasterTable() + "\""  + " as " + fkToTable.getMasterTable() + 
-		    							" ON " + refToTable + "." + fkToTable.getFkFieldNameInDetailsTable() + " = " + fkToTable.getMasterTable() + "." + fkToTable.getPkFieldNameInMasterTable(); 
+		    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getMasterTable() + "\""  + " as " + (fkToTable.getMasterTable() + (i + 1)) + 
+		    							" ON " + (refToTable + i) + "." + fkToTable.getFkFieldNameInDetailsTable() + " = " + (fkToTable.getMasterTable() + (i + 1)) + "." + fkToTable.getPkFieldNameInMasterTable(); 
 		    					prevFk = fkToTable;
+		    					prevRefToTable = fkToTable.getMasterTable();
+		    					pathElements[i] = fkToTable.getMasterTable() + (i + 1);
 		    				} else if(fksToTable.size() > 1){
 		    					throw new IllegalArgumentException(String.format("Cannot resolve property name %s", propName));
 		    				} else {
-			    				refToTable = i == 0 ? table : prevFk.getDetailsTable();
+			    				refToTable = i == 0 ? table : prevRefToTable; //prevFk.getDetailsTable();
 		    					// Trying to resolve through master fks
 		    					List<ForeignKeyMetaData> masterFks = getMasterForeignKeys(connectionName, catalog, schema, refToTable);
 			    				List<ForeignKeyMetaData> masterFksToTable = masterFks.stream().filter(
 			    						// fk -> fk.getMasterTable().equalsIgnoreCase(tableName) || fk.getFkFieldNameInDetailsTable().startsWith(tableName)
-			    						fk -> (fk.getDetailsTable() + "s").equalsIgnoreCase(propName)
+			    						fk -> (fk.getDetailsTable() + "s").equalsIgnoreCase(propName) || propName.equalsIgnoreCase(fk.getAliasInMasterTable())
 			    						).collect(Collectors.toList());
 			    				
 			    				String finalRefToTable = refToTable;
@@ -427,10 +544,11 @@ public class ConnectionService {
 			    				}
 			    				if(masterFksToTable.size() == 1) {
 			    					ForeignKeyMetaData fkToTable = masterFksToTable.get(0);
-			    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getDetailsTable() + "\""  + " as " + fkToTable.getDetailsTable() + 
-			    							" ON " + refToTable + "." + fkToTable.getPkFieldNameInMasterTable() + " = " + fkToTable.getDetailsTable() + "." + fkToTable.getFkFieldNameInDetailsTable(); 
+			    					fromClause = fromClause + "\n  JOIN \"" + fkToTable.getDetailsTable() + "\""  + " as " + (fkToTable.getDetailsTable() + (i + 1)) + 
+			    							" ON " + (refToTable + i) + "." + fkToTable.getPkFieldNameInMasterTable() + " = " + (fkToTable.getDetailsTable() + (i + 1)) + "." + fkToTable.getFkFieldNameInDetailsTable(); 
 			    					prevFk = fkToTable;
-			    					pathElements[i] = fkToTable.getDetailsTable();
+			    					prevRefToTable = fkToTable.getDetailsTable();
+			    					pathElements[i] = fkToTable.getDetailsTable() + (i + 1);
 			    					
 			    				} else {
 			    					throw new IllegalArgumentException(String.format("Cannot resolve property name %s", propName));
@@ -448,9 +566,9 @@ public class ConnectionService {
 	    	
     	}
 
-		String simpleSql = "select * from " + fromClause +
+		String simpleSql = "select distinct " + table + "0.* from " + fromClause +
                 (condition != null && condition.trim().length() > 0 ? " where " + condition : "") +
-                (order != null && order.trim().length() > 0 ? " order by " + table + "." + order + (asc ? " asc" : " desc") : "");
+                (order != null && order.trim().length() > 0 ? " order by " + table + "0." + order + (asc ? " asc" : " desc") : "");
     	log.info("SQL = " + simpleSql);
     	return simpleSql;
     	
@@ -489,6 +607,7 @@ public class ConnectionService {
                     .host(m.group(3))
                     .port(sPort == null || sPort.length() == 0 ? 0 : Integer.parseInt(sPort.substring(1)))
                     .catalog(m.group(5))
+                    .params(m.group(6))
                     .build();
         } else {
             throw new IllegalArgumentException(String.format("Cannot parse url '?'", url));
@@ -632,5 +751,28 @@ public class ConnectionService {
 		return data;
 		
 	}
-			
+
+	public List<SequenceMetaData> getSequences(String connectionName, String catalog, String schema) throws IOException {
+        DataSource ds = getDataSource(connectionName, catalog);
+        JdbcTemplate template = new JdbcTemplate(ds);
+        List<String> seqNames = template.queryForList("SELECT c.relname FROM pg_class c WHERE c.relkind = 'S'", String.class);
+        String select = seqNames.stream().map(sn -> sn + ".last_value as " + sn + "_lv").collect(Collectors.joining(", "));
+        String from = seqNames.stream().collect(Collectors.joining(", "));
+
+        Map<String, Object> lvs = template.queryForMap("select " + select + " from " + from);
+		List<SequenceMetaData> sequences = seqNames.stream().map(n -> {
+			Long v = (Long) lvs.get(n + "_lv");
+			return SequenceMetaData.builder()
+					.name(n)
+					.value(v)
+					.build();
+		}).collect(Collectors.toList());
+		return sequences;
+	}
+
+	protected ObjectMapper createObjectMapper() {
+		ObjectMapper objectMapper = new ObjectMapper();
+		// objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		return objectMapper;
+	}
 }

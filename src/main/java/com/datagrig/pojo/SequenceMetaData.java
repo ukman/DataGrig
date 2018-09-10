@@ -5,7 +5,7 @@ import lombok.Data;
 
 @Data
 @Builder
-public class SchemaMetadata {
-    private String name;
-    private String title;
+public class SequenceMetaData {
+	private String name;
+	private long value;
 }

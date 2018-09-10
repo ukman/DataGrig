@@ -4,6 +4,8 @@ angular.module('DataGrigApp', ['ui.router', 'ngResource',
                                'dg.resources.Connections',
                                'dg.controllers.alias',
                                'dg.controllers.connection', 
-                               'dg.controllers.data'])
+                               'dg.controllers.query',
+                               'dg.controllers.data',
+                               'dg.controllers.compare'])
 .controller('DataGrigCtrl', function($scope) {
 });

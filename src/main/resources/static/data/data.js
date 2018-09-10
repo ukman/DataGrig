@@ -82,6 +82,25 @@ angular.module('dg.controllers.data', [])
             });
         }
         
+        $scope.refresh = function(row, id) {
+        	var idx = this.data.data.indexOf(row);
+        	console.log(idx, this.data.data[idx]);
+        	row.$loading = true;
+        	delete row.$error
+        	Connections.tableRowById({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, id:id}, function(data){
+        		console.log(data);
+        		if(data.data.length == 1) {
+        			$scope.data.data[idx] = data.data[0];
+        		} else {
+        			this.data.splice(idx, 1);
+        		}
+        	}, function(error) {
+        		row.$loading = false;
+        		console.error(error);
+        		row.$error = error;
+        	});
+        }
+        
         function preprocessData(data) {
             for(var i = 0; i < data.data.length; i++) {
                 var row = data.data[i];

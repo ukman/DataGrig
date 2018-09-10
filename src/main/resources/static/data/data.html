@@ -94,6 +94,18 @@
 	                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
 	                        -->
 	                    </a>
+	                    <span ng-show="col.primaryKey && !row.$loading" ng-click="refresh(row, row[col.name])" class="btn btn-link">
+	                    	Refresh
+	                    </span> 
+	                    <span ng-show="col.primaryKey && row.$loading">
+	                    	Loading...
+	                    </span> 
+	                    <div ng-show="col.primaryKey && row.$error" class="text text-danger">
+	                    	Error : 
+	                    	{{row.$error.data.exception}}
+	                    	{{row.$error.data.message}}
+	                    </div> 
+	                    
 	                    <div ng-repeat="fk in findMasterForeignKey(col.name)" ng-hide="row.fkInfos && row.fkInfos[fk.name] == 0">
 	                        <a ui-sref="data({ connection: $stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:fk.detailsTable, condition:fk.fkFieldNameInDetailsTable + '=' + row[col.name], order:'', asc:false, page:0})">
 	                        	{{fk.detailsTable}}({{fk.fkFieldNameInDetailsTable}})>>{{$stateParams.table}}</a><span ng-show="row.fkInfos">({{row.fkInfos[fk.name]}})</span>

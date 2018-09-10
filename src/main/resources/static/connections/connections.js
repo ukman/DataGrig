@@ -1,6 +1,7 @@
 angular.module('dg.controllers.connection', [])
     .controller('ConnectionsCtrl', function($scope, $stateParams, $state, Connections, ConfigConnections){
         $scope.connections = Connections.query();
+        $scope.ctrl = this;
         $scope.connect = function(con) {
             if(!con.connected) {
                 Connections.connect(con, () => {
@@ -34,7 +35,14 @@ angular.module('dg.controllers.connection', [])
         		schema.tables = Connections.tables({name:con.name, catalog:catalog.name, schema: schema.name});
         	}
         }
-        $scope.toggleTableColumns = function(con, catalog, schema,table) {
+        $scope.toggleSequences = function(con, catalog, schema) {
+        	if(schema.sequences) {
+        		delete schema.sequences;
+        	} else { 
+        		schema.sequences = Connections.sequences({name:con.name, catalog:catalog.name, schema: schema.name});
+        	}
+        }
+        $scope.toggleTableColumns = function(con, catalog, schema, table) {
         	if(table.columns) {
         		delete table.columns;
         		delete table.detailsForeignKey;
@@ -45,6 +53,14 @@ angular.module('dg.controllers.connection', [])
 	            table.masterForeignKeys = Connections.tableMasterForeignKeys({name:con.name, catalog:catalog.name, schema: schema.name, table:table.name});
         	}
         }
+        $scope.toggleTableIndexes = function(con, catalog, schema, table) {
+        	if(table.indexes) {
+        		delete table.indexes;
+        	} else {
+	            table.indexes = Connections.tableDetailsForeignKeys({name:con.name, catalog:catalog.name, schema: schema.name, table:table.name});
+        	}
+        }
+        
         $scope.deleteConnection = function(connectionName) {
         	if(confirm('Are you sure you want to delete connection ' + connectionName)) {
 	        	ConfigConnections.remove({name:connectionName}, function(){
