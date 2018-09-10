@@ -33,9 +33,9 @@ import org.apache.cayenne.exp.parser.ExpressionParserConstants;
 import org.apache.cayenne.exp.parser.ExpressionParserTokenManager;
 import org.apache.cayenne.exp.parser.JavaCharStream;
 import org.apache.cayenne.exp.parser.Token;
+import org.apache.commons.collections4.map.PassiveExpiringMap;
 import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.NestedRuntimeException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
@@ -64,7 +64,6 @@ import com.datagrig.pojo.SchemaMetadata;
 import com.datagrig.pojo.SequenceMetaData;
 import com.datagrig.pojo.TableMetadata;
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
@@ -87,7 +86,7 @@ public class ConnectionService {
 
     private Map<String, HikariDataSource> connections = new HashMap<>();
 
-    private Map<String, List<ForeignKeyMetaData>> indexesCache = new HashMap<>();
+    private Map<String, List<ForeignKeyMetaData>> indexesCache = new PassiveExpiringMap<String, List<ForeignKeyMetaData>>(5 * 60 * 1000);
 
     public void connect(String connectionName, String catalog) throws IOException, ClassNotFoundException, SQLException {
         String key = connectionName + "/" + catalog;
