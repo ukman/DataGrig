@@ -264,7 +264,7 @@ public class ConnectionService {
 		    			}
 		    			condToken.image = pathElements[pathElements.length - 2] + "." + pathElements[pathElements.length - 1];
 	    			} else {
-	    				condToken.image = table + "." + pathElements[pathElements.length - 1];
+	    				condToken.image = table + "0." + pathElements[pathElements.length - 1];
 	    			}
 	    		}
 	    	}
