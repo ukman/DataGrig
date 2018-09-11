@@ -24,7 +24,20 @@ angular.module('dg.utils', [])
                     */
                 }
             }
+        },
+        
+        beautifyColName : function(name) {
+        	var words = name.split('_');
+        	for(var i = 0; i < words.length; i++) {
+        		var word = words[i];
+        		if(word.length > 0) {
+        			word = word.substring(0, 1).toUpperCase() + word.substring(1);
+        		}
+        		words[i] = word;
+        	}
+        	return words.join(' ');
         }
+	
 		
 	};
 });

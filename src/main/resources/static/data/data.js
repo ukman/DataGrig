@@ -7,6 +7,7 @@ angular.module('dg.controllers.data', ['dg.utils'])
         	$scope.error = error;
         });	
         console.log('Data', $scope.data);
+        $scope.DGUtils = DGUtils;
         $scope.columns = Connections.tableColumns({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table});
         $scope.detailsForeignKeys = Connections.tableDetailsForeignKeys({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table},
             function(fks){

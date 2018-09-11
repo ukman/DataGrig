@@ -53,16 +53,16 @@
         	</caption>
             <thead>
             <tr>
-                <th ng-repeat="col in columns" ng-click="sort(col.name, $stateParams.asc)"
+                <th ng-repeat="col in columns"
                     ng-if="fildsFilter == '' || col.name.match(fildsFilter)"
                     title="{{($stateParams.order == col.name ? ($stateParams.asc == 'true' ? 'Sort ascending' : 'Sort descending') : '')}}"
                     ng-class="{asc:$stateParams.order == col.name && $stateParams.asc == 'true', desc:$stateParams.order == col.name && $stateParams.asc == 'false'}"
-                    class="align-top">
-                    <div>
-                        {{col.name}}
+                     class="align-top">
+                    <div ng-click="sort(col.name, $stateParams.asc)" class="text-nowrap">
+                        {{DGUtils.beautifyColName(col.name)}}
                     </div>
                     <div class="font-weight-light small">
-                        {{col.type}}
+                        {{col.name}}:{{col.type}}
                     </div>
                     <div ng-show="findDetailsForeignKey(col.name)" class="font-weight-light small" title="Link to table">
                         <a ng-show="$stateParams.condition"
@@ -99,8 +99,8 @@
 	                        {{$stateParams.table}}>>{{findDetailsForeignKey(col.name).masterTable}}
 	                        -->
 	                    </a>
-	                    <span ng-show="col.primaryKey && !row.$loading" ng-click="refresh(row, row[col.name])" class="small btn btn-sm btn-link">
-	                    	Refresh
+	                    <span ng-show="col.primaryKey && !row.$loading" ng-click="refresh(row, row[col.name])" class="small btn btn-sm btn-link" title="Refresh">
+	                    	<i class="fas fa-sync"></i>
 	                    </span> 
 	                    <span ng-show="col.primaryKey && row.$loading" class="small">
 	                    	Loading...

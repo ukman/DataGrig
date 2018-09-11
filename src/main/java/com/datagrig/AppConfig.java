@@ -11,4 +11,5 @@ import java.io.File;
 @Component
 public class AppConfig {
     private File folder;
+    private String rebootPassword;
 }
