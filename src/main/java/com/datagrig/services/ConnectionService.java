@@ -6,7 +6,6 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -23,8 +22,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
@@ -33,13 +30,12 @@ import org.apache.cayenne.exp.parser.ExpressionParserConstants;
 import org.apache.cayenne.exp.parser.ExpressionParserTokenManager;
 import org.apache.cayenne.exp.parser.JavaCharStream;
 import org.apache.cayenne.exp.parser.Token;
-import org.apache.commons.collections4.map.PassiveExpiringMap;
-import org.apache.commons.lang3.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StopWatch;
 
 import com.akiban.sql.StandardException;
 import com.akiban.sql.parser.CursorNode;
@@ -56,11 +52,9 @@ import com.datagrig.pojo.CatalogMetadata;
 import com.datagrig.pojo.ColumnMetaData;
 import com.datagrig.pojo.ConnectionCatalog;
 import com.datagrig.pojo.ConnectionState;
-import com.datagrig.pojo.ConnectionUrl;
 import com.datagrig.pojo.ForeignKeyMetaData;
 import com.datagrig.pojo.QueryInfo;
 import com.datagrig.pojo.QueryResult;
-import com.datagrig.pojo.SchemaMetadata;
 import com.datagrig.pojo.SequenceMetaData;
 import com.datagrig.pojo.TableMetadata;
 import com.fasterxml.jackson.core.JsonParseException;
@@ -74,8 +68,6 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ConnectionService {
 
-    private static final String CONNECTION_RE = "([^:]+):([^:]*)://([^:/]+)(:[0-9]+)?/([^?]*)(\\?.+)?"; //jdbc:postgresql://localhost:5432/cyfoman
-    private static final Pattern CONNECTION_PATTERN = Pattern.compile(CONNECTION_RE);
 	private static final Set<String> NULLABLE_VALUES = Collections.<String>unmodifiableSet(new HashSet<String>(Arrays.asList(new String[]{"YES", "yes", "+", "1"})));
 
     @Autowired
@@ -83,11 +75,16 @@ public class ConnectionService {
 
     @Autowired
     private ConfigService configService;
+    
+    @Autowired
+    private DataSourceService dataSourceService;
+    
+    @Autowired
+    private MetadataService metadataService;
 
     private Map<String, HikariDataSource> connections = new HashMap<>();
 
-    private Map<String, List<ForeignKeyMetaData>> indexesCache = new PassiveExpiringMap<String, List<ForeignKeyMetaData>>(5 * 60 * 1000);
-
+    /*
     public void connect(String connectionName, String catalog) throws IOException, ClassNotFoundException, SQLException {
         String key = connectionName + "/" + catalog;
         if(connections.containsKey(key)) {
@@ -110,9 +107,10 @@ public class ConnectionService {
     public void disconnect(String connectionName, String catalog) throws IOException, ClassNotFoundException, SQLException {
         connections.remove(connectionName + "/" + catalog);
     }
+    */
 
     public QueryResult executeQuery(String connectionName, String catalog, int limit, int page, String sqlQuery, Object... params) throws SQLException, IOException {
-        DataSource ds = getDataSource(connectionName, catalog);
+        DataSource ds = dataSourceService.getDataSource(connectionName, catalog);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(ds);
         QueryResult queryResult = jdbcTemplate.query(sqlQuery + (limit > 0 ? " limit " + limit + " offset " + limit * page : ""), new ResultSetExtractor<QueryResult>() {
             @Override
@@ -189,299 +187,8 @@ public class ConnectionService {
         }).collect(Collectors.toList());
     }
 
-    public List<CatalogMetadata> getConnectionCatalogs(String connectionName) throws SQLException, IOException {
-        HikariDataSource ds = connections.get(connectionName);
-        ConnectionConfig configConnection = configService.getConnection(connectionName);
-        if(ds == null) {
-            ds = new HikariDataSource();
-            ds.setDriverClassName(configConnection.getDriver());
-            ds.setJdbcUrl(configConnection.getUrl());
-            ds.setUsername(configConnection.getUser());
-            ds.setPassword(configConnection.getPassword());
-            connections.put(connectionName, ds);
-        }
-    	if(isPostgreDB(connectionName)) {
-	        JdbcTemplate template = new JdbcTemplate(ds);
-	        List<String> excludeCatalogs = ObjectUtils.firstNonNull(configConnection.getExcludeCatalogs(), Collections.emptyList());
-	        
-	        List<String> catalogNames = template.queryForList("SELECT datname as name FROM pg_database WHERE datistemplate = false", String.class);
-	
-	        List<CatalogMetadata> catalogs = catalogNames.stream()
-	        		.filter(catalog -> !excludeCatalogs.contains(catalog))
-	        		.map(CatalogMetadata::new).collect(Collectors.toList());
-	        return catalogs;
-    	}
-    	
-    	// return Arrays.asList(CatalogMetadata.builder().name("default").build()); 
-
-        //*
-        try (Connection connection = ds.getConnection()) {
-            DatabaseMetaData metadata = connection.getMetaData();
-            ResultSet catalogsRs = metadata.getCatalogs();
-            List<CatalogMetadata> catalogs = new ArrayList<>();
-            while (catalogsRs.next()) {
-                catalogs.add(CatalogMetadata.builder().name(catalogsRs.getString("TABLE_CAT")).build());
-            }
-            return catalogs;
-        }
-        //*/
-    }
-
-    protected synchronized DataSource getDataSource(String connectionName, String catalog) throws IOException {
-        String key = connectionName + "/" + catalog;
-        HikariDataSource ds = connections.get(key);
-        if(ds == null) {
-            ConnectionConfig configConnection = configService.getConnection(connectionName);
-
-            ConnectionUrl connectionUrl = parseConnectionString(configConnection.getUrl());
-            connectionUrl.setCatalog(catalog);
-            String jdbcUrl = connectionUrl.toUrl();
-
-            ds = new HikariDataSource();
-            ds.setDriverClassName(configConnection.getDriver());
-            ds.setJdbcUrl(jdbcUrl);
-            ds.setUsername(configConnection.getUser());
-            ds.setPassword(configConnection.getPassword());
-            connections.put(key, ds);
-        }
-        return ds;
-    }
-
-    public List<SchemaMetadata> getSchemas(String connectionName, String catalog) throws SQLException, IOException {
-    	if(isPostgreDB(connectionName)) {
-	        DataSource ds = getDataSource(connectionName, catalog);
-	        try (Connection connection = ds.getConnection()) {
-	            DatabaseMetaData metadata = connection.getMetaData();
-	            ResultSet schemasRs = metadata.getSchemas();
-	            List<SchemaMetadata> schemas = new ArrayList<>();
-	            while(schemasRs.next()) {
-	                schemas.add(SchemaMetadata.builder()
-	                        .name(schemasRs.getString("TABLE_SCHEM"))
-	                        .title(schemasRs.getString("TABLE_SCHEM"))
-	                        .build());
-	            }
-	            return schemas;
-	        }
-    	}
-
-    	if(isMySQLDB(connectionName)) {
-    		List<SchemaMetadata> schemas = Arrays.asList(SchemaMetadata.builder()
-    				.title("default")
-    				.name("default")
-    				.build());
-    		return schemas;
-    	}
-
-        DataSource ds = getDataSource(connectionName, catalog);
-        try (Connection connection = ds.getConnection()) {
-            DatabaseMetaData metadata = connection.getMetaData();
-            ResultSet schemaRs = metadata.getSchemas();
-            List<SchemaMetadata> schemas = new ArrayList<>();
-            while (schemaRs.next()) {
-                schemas.add(SchemaMetadata.builder().name(schemaRs.getString("TABLE_SCHEM")).build());
-            }
-            return schemas;
-        }
-    	
-    }
-
-    public List<TableMetadata> getTables(String connectionName, String catalog, String schema) throws SQLException, IOException {
-    	boolean isMysql = isMySQLDB(connectionName);
-        DataSource ds = getDataSource(connectionName, catalog);
-        try (Connection connection = ds.getConnection()) {
-            DatabaseMetaData metadata = connection.getMetaData();
-            ResultSet tablesRs = metadata.getTables(catalog, schema, null, null);
-            List<TableMetadata> tables = new ArrayList<>();
-            Map<String, TableMetadata> mapTables = new HashMap<>();
-            while (tablesRs.next()) {
-                String type = tablesRs.getString("TABLE_TYPE");
-                String tableSchema = tablesRs.getString("TABLE_SCHEM");
-
-                if ("TABLE".equals(type) && (schema.equals(tableSchema) || isMysql)) {
-                    TableMetadata table = TableMetadata.builder()
-                            .name(tablesRs.getString("TABLE_NAME"))
-                            .schema(tablesRs.getString("TABLE_SCHEM"))
-                            .comment(tablesRs.getString("REMARKS"))
-                            .type(type)
-                            .build();
-                    tables.add(table);
-                    mapTables.put(table.getName(), table);
-                }
-            }
-
-            if(isPostgreDB(connectionName)) {
-	            PreparedStatement ps = connection.prepareStatement("SELECT\n" +
-	                    "   relname AS \"Table\",\n" +
-	                    "   pg_total_relation_size(relid) AS \"RealSize\",\n" +
-	                    "   pg_size_pretty(pg_total_relation_size(relid)) AS \"Size\",\n" +
-	                    "   pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS \"External Size\"\n" +
-	                    "   FROM pg_catalog.pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC;");
-	            ResultSet rs = ps.executeQuery();
-	            while (rs.next()) {
-	                String tableName = rs.getString("Table");
-	                TableMetadata table = mapTables.get(tableName);
-	                if (table != null) {
-	                    table.setSize(rs.getLong("RealSize"));
-	                }
-	            }
-            }
-            return tables;
-        }
-    }
-
-    public List<ColumnMetaData> getColumns(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
-    	return getColumns(connectionName, catalog, schema, table, null);
-    }
-    
-    public List<ColumnMetaData> getColumns(String connectionName, String catalog, String schema, String table, String columnPattern) throws SQLException, IOException {
-        DataSource ds = getDataSource(connectionName, catalog);
-        List<ColumnMetaData> columns = new ArrayList<>();
-        
-        try (Connection connection = ds.getConnection()) {
-            DatabaseMetaData metadata = connection.getMetaData();
-            try (ResultSet columnsRs = metadata.getColumns(catalog, schema, table, columnPattern)) {
-	            while (columnsRs.next()) {
-	            	ColumnMetaData col = createColumnMetadata(columnsRs);
-	                columns.add(col);
-	            }
-            }
-            try (ResultSet pkRs = metadata.getPrimaryKeys(catalog, schema, table)) {
-	            while(pkRs.next()) {
-	                String colName = pkRs.getString("COLUMN_NAME");
-	                columns.stream().filter(c ->c.getName().equals(colName)).forEach(c -> c.setPrimaryKey(true));
-	            }
-            }
-        }
-        return columns;
-    }
-    
-    public ColumnMetaData getColumn(String connectionName, String catalog, String schema, String table, String columnName) throws SQLException, IOException {
-    	List<ColumnMetaData> columns = getColumns(connectionName, catalog, schema, table, columnName);
-    	if(columns.size() == 1) {
-    		return columns.get(0);
-    	}
-    	throw new IllegalArgumentException(String.format("Can not find column %s in table %s", columnName, table));
-    }
-    
-    protected ColumnMetaData createColumnMetadata(ResultSet columnsRs) throws SQLException {
-		String isNullableStr = columnsRs.getString("IS_NULLABLE");
-		boolean isNullable = NULLABLE_VALUES.contains(isNullableStr);
-		String isAutoIncrementStr = columnsRs.getString("IS_AUTOINCREMENT");
-		boolean isAutoIncrement = NULLABLE_VALUES.contains(isAutoIncrementStr);
-    	return ColumnMetaData.builder()
-                .name(columnsRs.getString("COLUMN_NAME"))
-                .type(columnsRs.getString("TYPE_NAME"))
-                .typeId(columnsRs.getInt("DATA_TYPE"))
-                .size(columnsRs.getInt("COLUMN_SIZE"))
-                .comment(columnsRs.getString("REMARKS"))
-                .nullable(isNullable)
-                .autoIncrement(isAutoIncrement)
-                .defaultValue(columnsRs.getString("COLUMN_DEF"))
-                .build();
-    }
-
-    public boolean isPostgreDB(String connectionName) throws IOException {
-    	ConnectionConfig connectionConfig = configService.getConnection(connectionName);
-		return connectionConfig.getDriver().toLowerCase().contains("postgresql");
-	}
-
-    public boolean isMySQLDB(String connectionName) throws IOException {
-    	ConnectionConfig connectionConfig = configService.getConnection(connectionName);
-		return connectionConfig.getDriver().toLowerCase().contains("mysql");
-	}
-
-	public List<ForeignKeyMetaData> getDetailForeignKeys(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
-        DataSource ds = getDataSource(connectionName, catalog);
-        try (Connection connection = ds.getConnection()) {
-            DatabaseMetaData metadata = connection.getMetaData();
-            ResultSet indexRs = metadata.getImportedKeys(catalog, schema, table);
-            List<ForeignKeyMetaData> indexes = new ArrayList<>();
-            while (indexRs.next()) {
-            	ForeignKeyMetaData index = createIndexMetaData(connectionName, catalog, indexRs);
-                indexes.add(index);
-            }
-            return indexes;
-        }
-    }
-
-    private ForeignKeyMetaData createIndexMetaData(String connectionName, String catalog, ResultSet indexRs) throws SQLException, IOException {
-    	ForeignKeyMetaData index = ForeignKeyMetaData.builder()
-	        .name(indexRs.getString("FK_NAME"))
-	        .masterTable(indexRs.getString("PKTABLE_NAME"))
-	        .masterSchema(indexRs.getString("PKTABLE_SCHEM"))
-	        .detailsTable(indexRs.getString("FKTABLE_NAME"))
-	        .detailsSchema(indexRs.getString("FKTABLE_SCHEM"))
-	        .pkFieldNameInMasterTable(indexRs.getString("PKCOLUMN_NAME"))
-	        .fkFieldNameInDetailsTable(indexRs.getString("FKCOLUMN_NAME"))
-	        .updateRule(indexRs.getString("UPDATE_RULE"))
-	        .deleteRule(indexRs.getString("DELETE_RULE"))
-	        .build();
-    	processCommentForFk(connectionName, catalog, index);
-        return index;
-	}
-
-	protected void processCommentForFk(String connectionName, String catalog, ForeignKeyMetaData index) throws SQLException, IOException {
-    	ColumnMetaData fkField = getColumn(connectionName, catalog, index.getDetailsSchema(), index.getDetailsTable(), index.getFkFieldNameInDetailsTable());
-    	if(fkField.getComment() != null) {
-    		ObjectMapper mapper = createObjectMapper();
-    		try {
-    			ForeignKeyMetaData fkMD = mapper.readValue(fkField.getComment(), ForeignKeyMetaData.class);
-    			index.setAliasInDetailsTable(fkMD.getAliasInDetailsTable());
-    			index.setAliasInMasterTable(fkMD.getAliasInMasterTable());
-    		} catch (JsonParseException | JsonMappingException e) {
-    			// Not problem- just skip comment
-    			log.warn(String.format("Error parsing comment %s", fkField.getComment()), e);
-			}
-    	}
-	}
-
-	public List<ForeignKeyMetaData> getMasterForeignKeys(String connectionName, String catalog, String schema, String table) throws SQLException, IOException {
-        List<ForeignKeyMetaData> indexes = getMasterForeignKeysForAllTables(connectionName, catalog, schema);
-        return indexes.stream().filter(m -> table.equals(m.getMasterTable())).collect(Collectors.toList());
-    }
-
-    protected List<ForeignKeyMetaData> getMasterForeignKeysForAllTables(String connectionName, String catalog, String schema) throws SQLException, IOException {
-        String key = String.join("#", connectionName, catalog, schema);
-
-        List<ForeignKeyMetaData> indexes = null;
-        synchronized (this.indexesCache) {
-            indexes = this.indexesCache.get(key);
-            if(indexes == null) {
-                DataSource ds = getDataSource(connectionName, catalog);
-                try (Connection connection = ds.getConnection()) {
-                    DatabaseMetaData metadata = connection.getMetaData();
-                    List<TableMetadata> tables = getTables(connectionName, catalog, schema);
-                    indexes = new ArrayList<>();
-                    for (TableMetadata tableMetadata : tables) {
-                        ResultSet indexRs = metadata.getImportedKeys(catalog, schema, tableMetadata.getName());
-
-                        while (indexRs.next()) {
-                        	ForeignKeyMetaData index = ForeignKeyMetaData.builder()
-                            .name(indexRs.getString("FK_NAME"))
-                            .masterTable(indexRs.getString("PKTABLE_NAME"))
-                            .masterSchema(indexRs.getString("PKTABLE_SCHEM"))
-                            .detailsTable(indexRs.getString("FKTABLE_NAME"))
-                            .detailsSchema(indexRs.getString("FKTABLE_SCHEM"))
-                            .pkFieldNameInMasterTable(indexRs.getString("PKCOLUMN_NAME"))
-                            .fkFieldNameInDetailsTable(indexRs.getString("FKCOLUMN_NAME"))
-                            .updateRule(indexRs.getString("UPDATE_RULE"))
-                            .deleteRule(indexRs.getString("DELETE_RULE"))
-                            .build();
-                        	processCommentForFk(connectionName, catalog, index);
-                        	
-                            indexes.add(index);
-                        }
-                    }
-                }
-                this.indexesCache.put(key, indexes);
-            }
-        }
-        return indexes;
-
-    }
-
     public QueryResult getTableData(String connectionName, String catalog, String schema, String table, String id) throws SQLException, IOException, StandardException {
-    	List<ColumnMetaData> columns = getColumns(connectionName, catalog, schema, table);
+    	List<ColumnMetaData> columns = metadataService.getColumns(connectionName, catalog, schema, table);
     	ColumnMetaData pkCol = columns.stream().filter(ColumnMetaData::isPrimaryKey).findFirst().orElseThrow(() -> new IllegalStateException(String.format("Can not find pk in table %s", table)));
     	String query = generateTableSelectQuery(connectionName, catalog, schema, table, "", null, true);
     	query = query + " WHERE " + String.format("\"%s\" = ?", pkCol.getName());
@@ -514,7 +221,7 @@ public class ConnectionService {
 		    			for(int i = 0; i < pathElements.length - 1; i++) {
 		    				String propName = pathElements[i];
 		    				String refToTable = i == 0 ? table : prevRefToTable; // prevFk.getMasterTable();
-		    		    	List<ForeignKeyMetaData> fks = getDetailForeignKeys(connectionName, catalog, schema, refToTable);
+		    		    	List<ForeignKeyMetaData> fks = metadataService.getDetailForeignKeys(connectionName, catalog, schema, refToTable);
 		    				List<ForeignKeyMetaData> fksToTable = fks.stream().filter(
 		    						// fk -> fk.getMasterTable().equalsIgnoreCase(tableName) || fk.getFkFieldNameInDetailsTable().startsWith(tableName)
 		    						fk -> fk.getFkFieldNameInDetailsTable().equalsIgnoreCase(propName + "_id") || propName.equalsIgnoreCase(fk.getAliasInDetailsTable())
@@ -531,7 +238,7 @@ public class ConnectionService {
 		    				} else {
 			    				refToTable = i == 0 ? table : prevRefToTable; //prevFk.getDetailsTable();
 		    					// Trying to resolve through master fks
-		    					List<ForeignKeyMetaData> masterFks = getMasterForeignKeys(connectionName, catalog, schema, refToTable);
+		    					List<ForeignKeyMetaData> masterFks = metadataService.getMasterForeignKeys(connectionName, catalog, schema, refToTable);
 			    				List<ForeignKeyMetaData> masterFksToTable = masterFks.stream().filter(
 			    						// fk -> fk.getMasterTable().equalsIgnoreCase(tableName) || fk.getFkFieldNameInDetailsTable().startsWith(tableName)
 			    						fk -> (fk.getDetailsTable() + "s").equalsIgnoreCase(propName) || propName.equalsIgnoreCase(fk.getAliasInMasterTable())
@@ -596,34 +303,17 @@ public class ConnectionService {
         return missed;
     }
 
-    public ConnectionUrl parseConnectionString(String url) {
-        Matcher m = CONNECTION_PATTERN.matcher(url);
-        if(m.matches()) {
-            String sPort = m.group(4);
-            return ConnectionUrl.builder()
-                    .protocol(m.group(1))
-                    .type(m.group(2))
-                    .host(m.group(3))
-                    .port(sPort == null || sPort.length() == 0 ? 0 : Integer.parseInt(sPort.substring(1)))
-                    .catalog(m.group(5))
-                    .params(m.group(6))
-                    .build();
-        } else {
-            throw new IllegalArgumentException(String.format("Cannot parse url '?'", url));
-        }
-    }
-
     public Optional<ConnectionCatalog> lookupAlias(String alias) throws IOException, SQLException {
         for(File connectionFodler : configService.getConnectionFolders()) {
             String connection = connectionFodler.getName();
             ConnectionConfig connectionConfig = configService.getConnection(connection);
             if(connectionConfig.getAliasQuery() != null) {
-                List<CatalogMetadata> catalogs = getConnectionCatalogs(connection);
+                List<CatalogMetadata> catalogs = metadataService.getConnectionCatalogs(connection);
                 // for(CatalogMetadata catalog : catalogs)
                 Optional<ConnectionCatalog> con = catalogs.stream().parallel().filter(catalog ->
                 {
                     try {
-                        DataSource ds = getDataSource(connection, catalog.getName());
+                        DataSource ds = dataSourceService.getDataSource(connection, catalog.getName());
                         JdbcTemplate template = new JdbcTemplate(ds);
                         Boolean isAlias = template.queryForObject(connectionConfig.getAliasQuery(), Boolean.class, alias);
                         return isAlias;
@@ -645,8 +335,8 @@ public class ConnectionService {
 
     public Map<String, Integer> getMasterForeignKeyInfos(String connectionName, String catalog, String schema, String table, String id) throws IOException, SQLException, InterruptedException, ExecutionException {
         Map<String, Integer> infos = new HashMap();
-        List<ForeignKeyMetaData> keys = getMasterForeignKeys(connectionName, catalog, schema, table);
-        List<ColumnMetaData> cols = getColumns(connectionName, catalog, schema, table);
+        List<ForeignKeyMetaData> keys = metadataService.getMasterForeignKeys(connectionName, catalog, schema, table);
+        List<ColumnMetaData> cols = metadataService.getColumns(connectionName, catalog, schema, table);
         List<ColumnMetaData> pkCols = cols.stream().filter(ColumnMetaData::isPrimaryKey).collect(Collectors.toList());
         if(pkCols.size() > 1) {
             throw new IllegalArgumentException(String.format("Can not process table (%s) with more than 1 PK field", table));
@@ -663,7 +353,7 @@ public class ConnectionService {
             oId = Integer.parseInt(String.valueOf(id));
         }
         Object finalOid = oId;
-        DataSource ds = getDataSource(connectionName, catalog);
+        DataSource ds = dataSourceService.getDataSource(connectionName, catalog);
         JdbcTemplate template = new JdbcTemplate(ds);
         //for(ForeignKeyMetaData key : keys) {
         ForkJoinPool customThreadPool = new ForkJoinPool(4);
@@ -704,8 +394,8 @@ public class ConnectionService {
     	List<ForeignKeyMetaData> allDetailKeys = new ArrayList<>();
     	
     	for(String table : tables) {
-    		allMasterKeys.addAll(getMasterForeignKeys(connectionName, catalog, null, table));
-    		allDetailKeys.addAll(getDetailForeignKeys(connectionName, catalog, null, table));
+    		allMasterKeys.addAll(metadataService.getMasterForeignKeys(connectionName, catalog, null, table));
+    		allDetailKeys.addAll(metadataService.getDetailForeignKeys(connectionName, catalog, null, table));
     	}
 		info.setMasterForeignKeys(allMasterKeys);
 		info.setDetailForeignKeys(allDetailKeys);
@@ -715,7 +405,7 @@ public class ConnectionService {
 
 	public byte[] getBinaryData(String connectionName, String catalog, String schema, String table, String column,
 			String id) throws SQLException, IOException {
-        List<ColumnMetaData> cols = getColumns(connectionName, catalog, schema, table);
+        List<ColumnMetaData> cols = metadataService.getColumns(connectionName, catalog, schema, table);
         List<ColumnMetaData> pkCols = cols.stream().filter(ColumnMetaData::isPrimaryKey).collect(Collectors.toList());
         if(pkCols.size() > 1) {
             throw new IllegalArgumentException(String.format("Can not process table (%s) with more than 1 PK field", table));
@@ -736,7 +426,7 @@ public class ConnectionService {
 	}
 
 	public byte[] getBinaryData(String connectionName, String catalog, String sql, Object...params) throws SQLException, IOException {
-        DataSource ds = getDataSource(connectionName, catalog);
+        DataSource ds = dataSourceService.getDataSource(connectionName, catalog);
         JdbcTemplate template = new JdbcTemplate(ds);
         ResultSetExtractor<byte[]> rse = new ResultSetExtractor<byte[]>() {
 
@@ -752,7 +442,7 @@ public class ConnectionService {
 	}
 
 	public List<SequenceMetaData> getSequences(String connectionName, String catalog, String schema) throws IOException {
-        DataSource ds = getDataSource(connectionName, catalog);
+        DataSource ds = dataSourceService.getDataSource(connectionName, catalog);
         JdbcTemplate template = new JdbcTemplate(ds);
         List<String> seqNames = template.queryForList("SELECT c.relname FROM pg_class c WHERE c.relkind = 'S'", String.class);
         String select = seqNames.stream().map(sn -> sn + ".last_value as " + sn + "_lv").collect(Collectors.joining(", "));
@@ -769,9 +459,4 @@ public class ConnectionService {
 		return sequences;
 	}
 
-	protected ObjectMapper createObjectMapper() {
-		ObjectMapper objectMapper = new ObjectMapper();
-		// objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		return objectMapper;
-	}
 }

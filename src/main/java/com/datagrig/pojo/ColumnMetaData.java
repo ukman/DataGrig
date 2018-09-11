@@ -7,6 +7,8 @@ import lombok.Data;
 @Builder
 public class ColumnMetaData {
     private String name;
+    private String schema;
+    private String table;
     private String type;
     private String defaultValue;
     private int typeId;

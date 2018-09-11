@@ -40,6 +40,7 @@ import com.datagrig.pojo.SequenceMetaData;
 import com.datagrig.pojo.TableMetadata;
 import com.datagrig.services.ConfigService;
 import com.datagrig.services.ConnectionService;
+import com.datagrig.services.MetadataService;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,6 +51,9 @@ public class ConnectionController {
 
     @Autowired
     private ConnectionService connectionService;
+    
+    @Autowired
+    private MetadataService metadataService;
 
     @Autowired
     private ConfigService configService;
@@ -61,30 +65,20 @@ public class ConnectionController {
 
     @RequestMapping(path="/{connectionName}/catalogs", method = RequestMethod.GET)
     public List<CatalogMetadata> getConnectionCatalogs(@PathVariable("connectionName") String connectionName) throws SQLException, IOException {
-        return connectionService.getConnectionCatalogs(connectionName);
+        return metadataService.getConnectionCatalogs(connectionName);
     }
 
     @RequestMapping(path="/{connectionName}/catalogs/{catalog}", method = RequestMethod.GET)
     public List<SchemaMetadata> getSchemas(@PathVariable("connectionName") String connectionName,
                                            @PathVariable("catalog") String catalog) throws SQLException, IOException {
-        return connectionService.getSchemas(connectionName, catalog);
+        return metadataService.getSchemas(connectionName, catalog);
     }
 
     @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas/{schema}", method = RequestMethod.GET)
     public List<TableMetadata> getTables(@PathVariable("connectionName") String connectionName,
                                          @PathVariable("catalog") String catalog,
                                          @PathVariable("schema") String schema) throws SQLException, IOException {
-        return connectionService.getTables(connectionName, catalog, schema);
-    }
-
-    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/connect", method = RequestMethod.POST)
-    public void connect(@PathVariable("connectionName") String connectionName, @PathVariable("catalog") String catalog) throws SQLException, IOException, ClassNotFoundException {
-        connectionService.connect(connectionName, catalog);
-    }
-
-    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/disconnect", method = RequestMethod.POST)
-    public void disconnect(@PathVariable("connectionName") String connectionName, @PathVariable("catalog") String catalog) throws SQLException, IOException, ClassNotFoundException {
-        connectionService.disconnect(connectionName, catalog);
+        return metadataService.getTables(connectionName, catalog, schema);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/execute", method = RequestMethod.POST)
@@ -121,7 +115,7 @@ public class ConnectionController {
                                            @PathVariable("catalog") String catalog,
                                            @PathVariable("schema") String schema,
                                            @PathVariable("table") String table) throws SQLException, IOException {
-        return connectionService.getColumns(connectionName, catalog, schema, table);
+        return metadataService.getColumns(connectionName, catalog, schema, table);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/sequences", method = RequestMethod.GET)
@@ -136,7 +130,7 @@ public class ConnectionController {
                                                           @PathVariable("catalog") String catalog,
                                                           @PathVariable("schema") String schema,
                                                           @PathVariable("table") String table) throws SQLException, IOException {
-        List<ForeignKeyMetaData> nativeMetadata = connectionService.getDetailForeignKeys(connectionName, catalog, schema, table);
+        List<ForeignKeyMetaData> nativeMetadata = metadataService.getDetailForeignKeys(connectionName, catalog, schema, table);
         // Add custom foreign keys
         Optional<ForeignKeyMetaData[]> customMetadata = configService.getCustomForeignKeys(connectionName);
         List<ForeignKeyMetaData> metadata = new ArrayList(nativeMetadata);
@@ -149,7 +143,7 @@ public class ConnectionController {
                                                          @PathVariable("catalog") String catalog,
                                                          @PathVariable("schema") String schema,
                                                          @PathVariable("table") String table) throws SQLException, IOException {
-        List<ForeignKeyMetaData> nativeMetadata = connectionService.getMasterForeignKeys(connectionName, catalog, schema, table);
+        List<ForeignKeyMetaData> nativeMetadata = metadataService.getMasterForeignKeys(connectionName, catalog, schema, table);
 
         // Add custom foreign keys
         Optional<ForeignKeyMetaData[]> customMetadata = configService.getCustomForeignKeys(connectionName);
@@ -190,8 +184,8 @@ public class ConnectionController {
                         @PathVariable("schema2") String schema2) throws SQLException, IOException {
         List<CompareItem> notes = new ArrayList<>();
 
-        List<TableMetadata> tables1 = connectionService.getTables(connectionName1, catalog1, schema1);
-        List<TableMetadata> tables2 = connectionService.getTables(connectionName2, catalog2, schema2);
+        List<TableMetadata> tables1 = metadataService.getTables(connectionName1, catalog1, schema1);
+        List<TableMetadata> tables2 = metadataService.getTables(connectionName2, catalog2, schema2);
 
         Set<String> missedTables1 = connectionService.getMissed(tables1, tables2, mt -> {return ((TableMetadata)mt).getName();});
         Set<String> missedTables2 = connectionService.getMissed(tables2, tables1, mt -> {return ((TableMetadata)mt).getName();});
@@ -205,8 +199,8 @@ public class ConnectionController {
         // Check fields
         for(TableMetadata table : tables1) {
             if (!missedTables1.contains(table.getName())) {
-                List<ColumnMetaData> cols1 = connectionService.getColumns(connectionName1, catalog1, schema1, table.getName());
-                List<ColumnMetaData> cols2 = connectionService.getColumns(connectionName2, catalog2, schema2, table.getName());
+                List<ColumnMetaData> cols1 = metadataService.getColumns(connectionName1, catalog1, schema1, table.getName());
+                List<ColumnMetaData> cols2 = metadataService.getColumns(connectionName2, catalog2, schema2, table.getName());
                 Set<String> missedCol1 = connectionService.getMissed(cols1, cols2, mt -> {return ((ColumnMetaData)mt).getName();});
                 Set<String> missedCol2 = connectionService.getMissed(cols2, cols1, mt -> {return ((ColumnMetaData)mt).getName();});
                 notes.addAll(missedCol1.stream().map(c -> CompareItem.builder().severity(Severity.ERROR).message("Missed column " + c + " in " + connectionName2 + "/" + catalog2 + "/" + schema2 + "/" + table.getName()).build()).collect(Collectors.toList()));
@@ -274,8 +268,8 @@ public class ConnectionController {
         // Check indexes
         for(TableMetadata table : tables1) {
             if(!missedTables1.contains(table.getName())) {
-                List<ForeignKeyMetaData> keys1 = connectionService.getDetailForeignKeys(connectionName1, catalog1, schema1, table.getName());
-                List<ForeignKeyMetaData> keys2 = connectionService.getDetailForeignKeys(connectionName2, catalog2, schema2, table.getName());
+                List<ForeignKeyMetaData> keys1 = metadataService.getDetailForeignKeys(connectionName1, catalog1, schema1, table.getName());
+                List<ForeignKeyMetaData> keys2 = metadataService.getDetailForeignKeys(connectionName2, catalog2, schema2, table.getName());
                 Set<String> missedIndexes1 = connectionService.getMissed(keys1, keys2, mt -> {return ((ForeignKeyMetaData)mt).getFkFieldNameInDetailsTable() + "->" + ((ForeignKeyMetaData)mt).getMasterTable();});
                 Set<String> missedIndexes2 = connectionService.getMissed(keys2, keys1, mt -> {return ((ForeignKeyMetaData)mt).getFkFieldNameInDetailsTable() + "->" + ((ForeignKeyMetaData)mt).getMasterTable();});
                 notes.addAll(missedIndexes1.stream().map(t -> CompareItem.builder().severity(Severity.ERROR).message("Missed index " + t + " in table " + table.getName() + " in " + connectionName2 + "/" + catalog2 + "/" + schema2).build()).collect(Collectors.toList()));

@@ -1,5 +1,5 @@
-angular.module('dg.controllers.query', [])
-    .controller('QueryCtrl', function($scope, $stateParams, $state, Connections){
+angular.module('dg.controllers.query', ['dg.utils'])
+    .controller('QueryCtrl', function($scope, $stateParams, $state, Connections, DGUtils){
     	$scope.query = $stateParams.sql;
         $scope.runQuery = function(sql) {
             $scope.metaData = null;
@@ -12,7 +12,7 @@ angular.module('dg.controllers.query', [])
                                 if(!$scope.metaData) {
                                     $scope.metaData = data.metaData;
                                 }
-                                preprocessData(data);
+                                DGUtils.preprocessData(data);
                             }, function(error){
                                 console.error(error);
                                 catalog.error = error;

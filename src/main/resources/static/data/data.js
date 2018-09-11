@@ -1,9 +1,9 @@
-angular.module('dg.controllers.data', [])
-    .controller('DataCtrl', function($scope, $stateParams, $state, Connections){
+angular.module('dg.controllers.data', ['dg.utils'])
+    .controller('DataCtrl', function($scope, $stateParams, $state, Connections, DGUtils){
         console.log($stateParams);
         $scope.fildsFilter = '';
         delete $scope.error; 
-        $scope.data = Connections.tableData({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit:$stateParams.limit, page:$stateParams.page}, preprocessData, function(error){
+        $scope.data = Connections.tableData({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, condition:$stateParams.condition, order:$stateParams.order, asc:$stateParams.asc, limit:$stateParams.limit, page:$stateParams.page}, DGUtils.preprocessData, function(error){
         	$scope.error = error;
         });	
         console.log('Data', $scope.data);
@@ -88,31 +88,17 @@ angular.module('dg.controllers.data', [])
         	row.$loading = true;
         	delete row.$error
         	Connections.tableRowById({name:$stateParams.connection, catalog:$stateParams.catalog, schema: $stateParams.schema, table:$stateParams.table, id:id}, function(data){
+        		DGUtils.preprocessData(data);
         		console.log(data);
         		if(data.data.length == 1) {
         			$scope.data.data[idx] = data.data[0];
         		} else {
-        			this.data.splice(idx, 1);
+        			$scope.data.data.splice(idx, 1);
         		}
         	}, function(error) {
         		row.$loading = false;
         		console.error(error);
         		row.$error = error;
         	});
-        }
-        
-        function preprocessData(data) {
-            for(var i = 0; i < data.data.length; i++) {
-                var row = data.data[i];
-                for(var j = 0; j < data.metaData.length; j++) {
-                    var field = data.metaData[j];
-                    if(field.type == 'timestamp' || field.type == 'date') {
-                        var value = row[field.name];
-                        if(Number.isInteger(value)) {
-                            row[field.name] = new Date(value);
-                        }
-                    }
-                }
-            }
         }
     });
