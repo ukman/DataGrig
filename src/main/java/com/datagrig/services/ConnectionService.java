@@ -298,8 +298,10 @@ public class ConnectionService {
 //		String simpleSql = "select distinct " + table + "0.* from " + fromClause +
 //                (condition != null && condition.trim().length() > 0 ? " where " + condition : "") +
 //                (order != null && order.trim().length() > 0 ? " order by " + table + "0." + order + (asc ? " asc" : " desc") : "");
-		String simpleSql = "select * from " + table + " where id in (select " + table + "0.id from " + fromClause +
-				(condition != null && condition.trim().length() > 0 ? " where " + condition : "") + ") " +
+		String simpleSql = "select * from " + table + 
+				(condition != null && condition.trim().length() > 0 ? 
+				" where id in (select " + table + "0.id from " + fromClause +
+				" where " + condition + ") " : "") +
 				(order != null && order.trim().length() > 0 ? " order by " + order + (asc ? " asc" : " desc") : "");
     	log.info("SQL = " + simpleSql);
     	return simpleSql;
