@@ -53,13 +53,10 @@ import com.datagrig.pojo.ColumnMetaData;
 import com.datagrig.pojo.ConnectionCatalog;
 import com.datagrig.pojo.ConnectionState;
 import com.datagrig.pojo.ForeignKeyMetaData;
+import com.datagrig.pojo.PagingInfo;
 import com.datagrig.pojo.QueryInfo;
 import com.datagrig.pojo.QueryResult;
 import com.datagrig.pojo.SequenceMetaData;
-import com.datagrig.pojo.TableMetadata;
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zaxxer.hikari.HikariDataSource;
 
 import lombok.extern.slf4j.Slf4j;
@@ -109,9 +106,35 @@ public class ConnectionService {
     }
     */
 
+    public PagingInfo getPaginInfo(String connectionName, String catalog, int limit, int page, String sqlQuery, Object... params) throws SQLException, IOException {
+        if(limit > 0) {
+        	DataSource ds = dataSourceService.getDataSource(connectionName, catalog);
+            JdbcTemplate jdbcTemplate = new JdbcTemplate(ds);
+
+            int count = jdbcTemplate.queryForObject("select count(*) from (" + sqlQuery + ") as t", Integer.class, params);
+        	int mod = count % limit;
+        	int lastPage = (count - mod) / limit + (mod > 0 ? 1 : 0);
+        	return PagingInfo.builder().totalCount(count)
+        		.page(page)
+        		.lastPage(lastPage)
+        		.limit(limit)
+        		.build();
+        	
+        }
+    	throw new IllegalArgumentException("Limit param cannot be 0");
+    }
+
     public QueryResult executeQuery(String connectionName, String catalog, int limit, int page, String sqlQuery, Object... params) throws SQLException, IOException {
+    	StopWatch stopWatch = new StopWatch("executeQuery");
+
         DataSource ds = dataSourceService.getDataSource(connectionName, catalog);
         JdbcTemplate jdbcTemplate = new JdbcTemplate(ds);
+    	stopWatch.start("Calculating count");
+    	int count = 0;
+        stopWatch.stop();
+
+    	stopWatch.start("Getting Data");
+    	log.info("execute Query started");
         QueryResult queryResult = jdbcTemplate.query(sqlQuery + (limit > 0 ? " limit " + limit + " offset " + limit * page : ""), new ResultSetExtractor<QueryResult>() {
             @Override
             public QueryResult extractData(ResultSet rs) throws SQLException, DataAccessException {
@@ -140,15 +163,9 @@ public class ConnectionService {
                 return queryResult;
             }
         }, params);
-        if(limit > 0) {
-        	int count = jdbcTemplate.queryForObject("select count(*) from (" + sqlQuery + ") as t", Integer.class, params);
-        	int mod = count % limit;
-        	int lastPage = (count - mod) / limit + (mod > 0 ? 1 : 0);
-        	queryResult.setTotalCount(count);
-        	queryResult.setPage(page);
-        	queryResult.setLastPage(lastPage);
-        	queryResult.setLimit(limit);
-        }
+        stopWatch.stop();
+        log.info(String.format("executeQuery \n%s", stopWatch.prettyPrint()));
+        
         return queryResult;
     }
 
@@ -188,9 +205,13 @@ public class ConnectionService {
     }
 
     public QueryResult getTableData(String connectionName, String catalog, String schema, String table, String id) throws SQLException, IOException, StandardException {
+    	StopWatch stopWatch = new StopWatch();
+    	stopWatch.start();
     	List<ColumnMetaData> columns = metadataService.getColumns(connectionName, catalog, schema, table);
+    	log.info(String.format("getTableData time 1 : %f sec", stopWatch.getTotalTimeSeconds()));
     	ColumnMetaData pkCol = columns.stream().filter(ColumnMetaData::isPrimaryKey).findFirst().orElseThrow(() -> new IllegalStateException(String.format("Can not find pk in table %s", table)));
     	String query = generateTableSelectQuery(connectionName, catalog, schema, table, "", null, true);
+    	log.info(String.format("getTableData time 2 : %f sec", stopWatch.getTotalTimeSeconds()));
     	query = query + " WHERE " + String.format("\"%s\" = ?", pkCol.getName());
     	Object oId = id;
         if(pkCol.getTypeId() == Types.BIGINT
@@ -198,7 +219,9 @@ public class ConnectionService {
                 || pkCol.getTypeId() == Types.NUMERIC) {
             oId = Integer.parseInt(String.valueOf(id));
         }
-        return executeQuery(connectionName, catalog, 0, 0, query, oId);
+        QueryResult data = executeQuery(connectionName, catalog, 0, 0, query, oId);
+    	log.info(String.format("getTableData time 3 : %f sec", stopWatch.getTotalTimeSeconds()));
+    	return data;
     }
     
     public QueryResult getTableData(String connectionName, String catalog, String schema, String table, String condition, int limit, int page, String order, boolean asc) throws SQLException, IOException, StandardException {
@@ -272,9 +295,12 @@ public class ConnectionService {
 	    	
     	}
 
-		String simpleSql = "select distinct " + table + "0.* from " + fromClause +
-                (condition != null && condition.trim().length() > 0 ? " where " + condition : "") +
-                (order != null && order.trim().length() > 0 ? " order by " + table + "0." + order + (asc ? " asc" : " desc") : "");
+//		String simpleSql = "select distinct " + table + "0.* from " + fromClause +
+//                (condition != null && condition.trim().length() > 0 ? " where " + condition : "") +
+//                (order != null && order.trim().length() > 0 ? " order by " + table + "0." + order + (asc ? " asc" : " desc") : "");
+		String simpleSql = "select * from " + table + " where id in (select " + table + "0.id from " + fromClause +
+				(condition != null && condition.trim().length() > 0 ? " where " + condition : "") + ") " +
+				(order != null && order.trim().length() > 0 ? " order by " + order + (asc ? " asc" : " desc") : "");
     	log.info("SQL = " + simpleSql);
     	return simpleSql;
     	
