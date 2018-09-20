@@ -19,6 +19,7 @@ import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.lang.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,6 +34,7 @@ import com.datagrig.pojo.CompareItem;
 import com.datagrig.pojo.CompareItem.Severity;
 import com.datagrig.pojo.ConnectionState;
 import com.datagrig.pojo.ForeignKeyMetaData;
+import com.datagrig.pojo.PagingInfo;
 import com.datagrig.pojo.QueryInfo;
 import com.datagrig.pojo.QueryResult;
 import com.datagrig.pojo.SchemaMetadata;
@@ -47,6 +49,7 @@ import lombok.extern.slf4j.Slf4j;
 @RestController
 @RequestMapping("/connections")
 @Slf4j
+@CrossOrigin(origins = "*")
 public class ConnectionController {
 
     @Autowired
@@ -68,13 +71,13 @@ public class ConnectionController {
         return metadataService.getConnectionCatalogs(connectionName);
     }
 
-    @RequestMapping(path="/{connectionName}/catalogs/{catalog}", method = RequestMethod.GET)
+    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas", method = RequestMethod.GET)
     public List<SchemaMetadata> getSchemas(@PathVariable("connectionName") String connectionName,
                                            @PathVariable("catalog") String catalog) throws SQLException, IOException {
         return metadataService.getSchemas(connectionName, catalog);
     }
 
-    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas/{schema}", method = RequestMethod.GET)
+    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables", method = RequestMethod.GET)
     public List<TableMetadata> getTables(@PathVariable("connectionName") String connectionName,
                                          @PathVariable("catalog") String catalog,
                                          @PathVariable("schema") String schema) throws SQLException, IOException {
@@ -98,6 +101,18 @@ public class ConnectionController {
                                     @RequestParam(name = "asc", required = false, defaultValue = "true")boolean asc
                                                       ) throws SQLException, IOException, StandardException {
         return connectionService.getTableData(connectionName, catalog, schema, table, condition, limit, page, order, asc);
+    }
+    
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/paging-info", method = RequestMethod.GET)
+    public PagingInfo getTablePaginInfo(@PathVariable("connectionName") String connectionName,
+    		@PathVariable("catalog") String catalog,
+    		@PathVariable("schema") String schema,
+    		@PathVariable("table") String table,
+    		@RequestParam(name = "condition", required = false, defaultValue = "")String condition,
+    		@RequestParam(name = "limit", required = false, defaultValue = "10")int limit,
+    		@RequestParam(name = "page", required = false, defaultValue = "0")int page
+    		) throws SQLException, IOException, StandardException {
+    	return connectionService.getTablePagingInfo(connectionName, catalog, schema, table, limit, page, condition);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/data/{id}", method = RequestMethod.GET)

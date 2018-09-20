@@ -19,7 +19,7 @@ angular.module('dg.resources.Connections', []).factory('Connections', function($
             },
             schemas: {
                 method: 'GET',
-                url: '/connections/:name/catalogs/:catalog',
+                url: '/connections/:name/catalogs/:catalog/schemas',
                 isArray: true,
                 params: {
                     name:'@name'
@@ -37,7 +37,7 @@ angular.module('dg.resources.Connections', []).factory('Connections', function($
             },
             tables: {
                 method: 'GET',
-                url: '/connections/:name/catalogs/:catalog/schemas/:schema',
+                url: '/connections/:name/catalogs/:catalog/schemas/:schema/tables',
                 isArray: true,
                 params: {
                     name:'@name',

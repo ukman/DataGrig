@@ -66,6 +66,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ConnectionService {
 
 	private static final Set<String> NULLABLE_VALUES = Collections.<String>unmodifiableSet(new HashSet<String>(Arrays.asList(new String[]{"YES", "yes", "+", "1"})));
+	private static final Set<String> NOT_PATH_TOKENS = Collections.<String>unmodifiableSet(new HashSet<String>(Arrays.asList(new String[]{"is"})));
 
     @Autowired
     private AppConfig appConfig;
@@ -106,7 +107,12 @@ public class ConnectionService {
     }
     */
 
-    public PagingInfo getPaginInfo(String connectionName, String catalog, int limit, int page, String sqlQuery, Object... params) throws SQLException, IOException {
+    public PagingInfo getTablePagingInfo(String connectionName, String catalog, String schema, String table, int limit, int page, String condition) throws SQLException, IOException, StandardException {
+    	String query = generateTableSelectQuery(connectionName, catalog, schema, table, condition, null, true);
+    	return getPagingInfo(connectionName, catalog, limit, page, query);
+    }
+    
+    public PagingInfo getPagingInfo(String connectionName, String catalog, int limit, int page, String sqlQuery, Object... params) throws SQLException, IOException {
         if(limit > 0) {
         	DataSource ds = dataSourceService.getDataSource(connectionName, catalog);
             JdbcTemplate jdbcTemplate = new JdbcTemplate(ds);
@@ -236,7 +242,7 @@ public class ConnectionService {
 	    	List<Token> condTokens = tokenizeSql(condition);
 	    	
 	    	for(Token condToken : condTokens) {
-	    		if(condToken.kind == ExpressionParserConstants.PROPERTY_PATH) {
+	    		if(condToken.kind == ExpressionParserConstants.PROPERTY_PATH && !NOT_PATH_TOKENS.contains(condToken.image.toLowerCase())) {
 	    			String[] pathElements = condToken.image.split("\\.");
 	    			if(pathElements.length >= 2) {
 	    				ForeignKeyMetaData prevFk = null;
