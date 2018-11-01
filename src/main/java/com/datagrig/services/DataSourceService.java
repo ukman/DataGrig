@@ -1,11 +1,13 @@
 package com.datagrig.services;
 
 import java.io.IOException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.sql.DataSource;
 
+import com.datagrig.ssh.SSHKeepAlive;
+import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -13,6 +15,8 @@ import org.springframework.stereotype.Service;
 import com.datagrig.ConnectionConfig;
 import com.datagrig.cache.CacheConfig;
 import com.datagrig.pojo.ConnectionUrl;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
 import com.zaxxer.hikari.HikariDataSource;
 
 import lombok.extern.slf4j.Slf4j;
@@ -20,25 +24,34 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class DataSourceService {
-    private static final String CONNECTION_RE = "([^:]+):([^:]*)://([^:/]+)(:[0-9]+)?/([^?]*)(\\?.+)?"; //jdbc:postgresql://localhost:5432/cyfoman
-    private static final Pattern CONNECTION_PATTERN = Pattern.compile(CONNECTION_RE);
+
+    @Autowired
+    private SSHKeepAlive sshKeepAlive;
 
 	@Autowired
 	private ConfigService configService;
 	
+	// private Map<String, Pair<Session, Integer>> sshSessions = new HashMap<String, Pair<Session,Integer>>();;
+	
 	@Cacheable(CacheConfig.DATA_SOURCES)
-    public DataSource getDataSource(String connectionName, String catalog) throws IOException {
+    public DataSource getDataSource(String connectionName, String catalog) throws IOException, JSchException {
 		log.info(String.format("Create datasource for %s.%s", connectionName, catalog));
         ConnectionConfig configConnection = configService.getConnection(connectionName);
-
-        String jdbcUrl;
-        if(catalog != null) {
-	        ConnectionUrl connectionUrl = parseConnectionString(configConnection.getUrl());
-	        connectionUrl.setCatalog(catalog);
-	        jdbcUrl = connectionUrl.toUrl();
-        } else {
-        	jdbcUrl = configConnection.getUrl();
+        if(configConnection.isSsh()) {
+            sshKeepAlive.addConfig(configConnection);
         }
+
+        ConnectionUrl connectionUrl = new ConnectionUrl(configConnection.getUrl());
+        if(configConnection.isSsh()) {
+            int port = sshKeepAlive.getForwardedPort(configConnection);
+            connectionUrl.setPort(port);
+            connectionUrl.setHost("localhost");
+        }
+
+        if(catalog != null) {
+	        connectionUrl.setCatalog(catalog);
+        }
+        String jdbcUrl = connectionUrl.toUrl();
 
         HikariDataSource ds = new HikariDataSource();
         ds.setDriverClassName(configConnection.getDriver());
@@ -46,23 +59,6 @@ public class DataSourceService {
         ds.setUsername(configConnection.getUser());
         ds.setPassword(configConnection.getPassword());
         return ds;
-    }
-
-    public ConnectionUrl parseConnectionString(String url) {
-        Matcher m = CONNECTION_PATTERN.matcher(url);
-        if(m.matches()) {
-            String sPort = m.group(4);
-            return ConnectionUrl.builder()
-                    .protocol(m.group(1))
-                    .type(m.group(2))
-                    .host(m.group(3))
-                    .port(sPort == null || sPort.length() == 0 ? 0 : Integer.parseInt(sPort.substring(1)))
-                    .catalog(m.group(5))
-                    .params(m.group(6))
-                    .build();
-        } else {
-            throw new IllegalArgumentException(String.format("Cannot parse url '?'", url));
-        }
     }
 
     public boolean isPostgreDB(String connectionName) throws IOException {

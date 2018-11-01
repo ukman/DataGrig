@@ -9,4 +9,7 @@ import lombok.Data;
 @AllArgsConstructor
 public class CatalogMetadata {
     private String name;
+    private String dba;
+    private String encoding;
+    private String comment;
 }

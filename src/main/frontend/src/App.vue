@@ -1,33 +1,45 @@
 <template>
-  <div id="app">
+  <b-container fluid id="app">
+    <!--
     <nav id="nav" class="nav nav-pills">
       <b-link class="nav-link" to="/connections">Connections</b-link>
       <b-link class="nav-link" to="/query">Query</b-link>
     </nav>
-    <router-view/>
-  </div>
+    -->
+    <Breadcrumb/>
+    <b-row>
+      <b-col>
+        <router-view/>
+      </b-col>
+    </b-row>
+    <b-row>
+      <!-- Footer -->
+    </b-row>
+  </b-container>
+
 </template>
 
 <style>
-/*
-#app {
-  font-family: 'Avenir', Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-}
-#nav {
-  padding: 30px;
-}
-
-#nav a {
-  font-weight: bold;
-  color: #2c3e50;
-}
-
-#nav a.router-link-exact-active {
-  color: #42b983;
-}
-*/
 </style>
+
+<script>
+import Breadcrumb from "./ui/Breadcrumb.vue";
+
+export default {
+    name: 'tables',
+    props: ['connectionName', 'catalog', 'schema', 'table', 'condition', 'page', 'limit'],
+    components: {
+      Breadcrumb
+    },
+    data() {
+      return{};
+    },
+    created() {
+      console.log("App created");
+    }
+}
+
+</script>
+
+
+

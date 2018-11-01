@@ -5,19 +5,18 @@
                 <b-form>
                     <b-form-group class="mb-0">
                         <b-input-group>
-                            <b-form-input v-model="filter" placeholder="Filter Tables"/>
+                            <b-form-input v-model="filter" placeholder="Filter Sequences"/>
                         </b-input-group>
                     </b-form-group>
                 </b-form>
             </b-col>
         </b-row>
-        <b-table :items="tables" :fields="tableFields" :filter="filter">
+        <b-table :items="sequences" :fields="sequenceFields" :filter="filter">
+            <!--
             <template slot="name" slot-scope="data">
-                <router-link
-                        :to="{name:'tableData', params:{connectionName: connectionName, catalog: catalog, schema: schema, table: data.value}}">
-                    {{data.value}}
-                </router-link>
+              <router-link :to="{name:'tableData', params:{connectionName: connectionName, catalog: catalog, schema: schema, table: data.value}}">{{data.value}}</router-link>
             </template>
+            -->
         </b-table>
         <loading-icon v-bind:loading="loading"/>
         <b-alert variant="danger" v-if="loadingError != null">
@@ -38,25 +37,30 @@ export default {
     loadingIcon
   },
   data() {return {
-    	tables: [],
+    	sequences: [],
     	loading: true,
     	loadingError: null,
     	filter: "",
-    	tableFields: [
+    	sequenceFields: [
     		{
     			key: 'name',
     			sortable: true,
     		},
     		{
-    			key: 'type',
+    			key: 'value',
     			sortable: true,
     		},
     		{
-    			key: 'size',
+    			key: 'minValue',
     			sortable: true,
-    			formatter: function(v){return numeral(v).format('0.0 b');},
-    			tdClass: 'text-right',
-    			thClass: 'text-right'
+    		},
+    		{
+    			key: 'maxValue',
+    			sortable: true,
+    		},
+    		{
+    			key: 'increment',
+    			sortable: true,
     		},
     		{
     			key: 'comment',
@@ -68,10 +72,10 @@ export default {
   },
   created() {
   	console.log("Created ", this);
-	var resConnections = this.$resource(config.API_LOCATION + '/connections/' + this.connectionName + '/catalogs/' + this.catalog + '/schemas/' + this.schema + '/tables');
+	var resConnections = this.$resource(config.API_LOCATION + '/connections/' + this.connectionName + '/catalogs/' + this.catalog + '/schemas/' + this.schema + '/sequences');
 	resConnections.query().then(response => {
 		this.loading = false;
-		this.tables = response.data;
+		this.sequences = response.data;
 	},
 	error => {
 		this.loading = false;

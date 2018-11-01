@@ -4,6 +4,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLConnection;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,8 +17,13 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import javax.annotation.PostConstruct;
 import javax.servlet.http.HttpServletResponse;
+import javax.sql.DataSource;
 
+import com.datagrig.pojo.*;
+import com.datagrig.services.DataSourceService;
+import com.datagrig.ssh.SSHKeepAlive;
 import org.apache.commons.lang.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -28,21 +36,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.akiban.sql.StandardException;
-import com.datagrig.pojo.CatalogMetadata;
-import com.datagrig.pojo.ColumnMetaData;
-import com.datagrig.pojo.CompareItem;
 import com.datagrig.pojo.CompareItem.Severity;
-import com.datagrig.pojo.ConnectionState;
-import com.datagrig.pojo.ForeignKeyMetaData;
-import com.datagrig.pojo.PagingInfo;
-import com.datagrig.pojo.QueryInfo;
-import com.datagrig.pojo.QueryResult;
-import com.datagrig.pojo.SchemaMetadata;
-import com.datagrig.pojo.SequenceMetaData;
-import com.datagrig.pojo.TableMetadata;
 import com.datagrig.services.ConfigService;
 import com.datagrig.services.ConnectionService;
 import com.datagrig.services.MetadataService;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+import com.jcraft.jsch.UserInfo;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -61,31 +62,39 @@ public class ConnectionController {
     @Autowired
     private ConfigService configService;
 
+    @Autowired
+    private DataSourceService dataSourceService;
+
     @RequestMapping(path="", method = RequestMethod.GET)
     public List<ConnectionState> getConnections(@RequestParam(name="brief", required=false, defaultValue="true") boolean brief) {
         return connectionService.getConnections(brief);
     }
 
+    @RequestMapping(path="/{connectionName}", method = RequestMethod.GET)
+    public ConnectionState getConnection(@PathVariable("connectionName") String connectionName) throws SQLException, IOException, JSchException {
+        return metadataService.getConnection(connectionName);
+    }
+
     @RequestMapping(path="/{connectionName}/catalogs", method = RequestMethod.GET)
-    public List<CatalogMetadata> getConnectionCatalogs(@PathVariable("connectionName") String connectionName) throws SQLException, IOException {
+    public List<CatalogMetadata> getConnectionCatalogs(@PathVariable("connectionName") String connectionName) throws SQLException, IOException, JSchException {
         return metadataService.getConnectionCatalogs(connectionName);
     }
 
     @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas", method = RequestMethod.GET)
     public List<SchemaMetadata> getSchemas(@PathVariable("connectionName") String connectionName,
-                                           @PathVariable("catalog") String catalog) throws SQLException, IOException {
+                                           @PathVariable("catalog") String catalog) throws SQLException, IOException, JSchException {
         return metadataService.getSchemas(connectionName, catalog);
     }
 
     @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables", method = RequestMethod.GET)
     public List<TableMetadata> getTables(@PathVariable("connectionName") String connectionName,
                                          @PathVariable("catalog") String catalog,
-                                         @PathVariable("schema") String schema) throws SQLException, IOException {
+                                         @PathVariable("schema") String schema) throws SQLException, IOException, JSchException {
         return metadataService.getTables(connectionName, catalog, schema);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/execute", method = RequestMethod.POST)
-    public QueryResult executeQuery(@PathVariable("connectionName") String connectionName, @PathVariable("catalog") String catalog, @RequestBody String sql) throws SQLException, IOException, ClassNotFoundException {
+    public QueryResult executeQuery(@PathVariable("connectionName") String connectionName, @PathVariable("catalog") String catalog, @RequestBody String sql) throws SQLException, IOException, ClassNotFoundException, JSchException {
         return connectionService.executeQuery(connectionName, catalog, 0, 0, sql);
     }
 
@@ -99,8 +108,9 @@ public class ConnectionController {
                                     @RequestParam(name = "page", required = false, defaultValue = "0")int page,
                                     @RequestParam(name = "order", required = false, defaultValue = "")String order,
                                     @RequestParam(name = "asc", required = false, defaultValue = "true")boolean asc
-                                                      ) throws SQLException, IOException, StandardException {
-        return connectionService.getTableData(connectionName, catalog, schema, table, condition, limit, page, order, asc);
+                                                      ) throws SQLException, IOException, StandardException, JSchException {
+        QueryResult data = connectionService.getTableData(connectionName, catalog, schema, table, condition, limit, page, order, asc);
+        return data;
     }
     
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/paging-info", method = RequestMethod.GET)
@@ -111,7 +121,7 @@ public class ConnectionController {
     		@RequestParam(name = "condition", required = false, defaultValue = "")String condition,
     		@RequestParam(name = "limit", required = false, defaultValue = "10")int limit,
     		@RequestParam(name = "page", required = false, defaultValue = "0")int page
-    		) throws SQLException, IOException, StandardException {
+    		) throws SQLException, IOException, StandardException, JSchException {
     	return connectionService.getTablePagingInfo(connectionName, catalog, schema, table, limit, page, condition);
     }
 
@@ -121,7 +131,7 @@ public class ConnectionController {
                                     @PathVariable("schema") String schema,
                                     @PathVariable("table") String table,
                                     @PathVariable(name = "id") String id
-                                                      ) throws SQLException, IOException, StandardException {
+                                                      ) throws SQLException, IOException, StandardException, JSchException {
         return connectionService.getTableData(connectionName, catalog, schema, table, id);
     }
 
@@ -129,22 +139,22 @@ public class ConnectionController {
     public List<ColumnMetaData> getColumns(@PathVariable("connectionName") String connectionName,
                                            @PathVariable("catalog") String catalog,
                                            @PathVariable("schema") String schema,
-                                           @PathVariable("table") String table) throws SQLException, IOException {
+                                           @PathVariable("table") String table) throws SQLException, IOException, JSchException {
         return metadataService.getColumns(connectionName, catalog, schema, table);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/sequences", method = RequestMethod.GET)
     public List<SequenceMetaData> getColumns(@PathVariable("connectionName") String connectionName,
                                            @PathVariable("catalog") String catalog,
-                                           @PathVariable("schema") String schema) throws SQLException, IOException {
-        return connectionService.getSequences(connectionName, catalog, schema);
+                                           @PathVariable("schema") String schema) throws SQLException, IOException, JSchException {
+        return metadataService.getSequences(connectionName, catalog, schema);
     }
 
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/detailsForeignKeys", method = RequestMethod.GET)
     public List<ForeignKeyMetaData> getDetailsForeignKeys(@PathVariable("connectionName") String connectionName,
                                                           @PathVariable("catalog") String catalog,
                                                           @PathVariable("schema") String schema,
-                                                          @PathVariable("table") String table) throws SQLException, IOException {
+                                                          @PathVariable("table") String table) throws SQLException, IOException, JSchException {
         List<ForeignKeyMetaData> nativeMetadata = metadataService.getDetailForeignKeys(connectionName, catalog, schema, table);
         // Add custom foreign keys
         Optional<ForeignKeyMetaData[]> customMetadata = configService.getCustomForeignKeys(connectionName);
@@ -157,7 +167,7 @@ public class ConnectionController {
     public List<ForeignKeyMetaData> getMasterForeignKeys(@PathVariable("connectionName") String connectionName,
                                                          @PathVariable("catalog") String catalog,
                                                          @PathVariable("schema") String schema,
-                                                         @PathVariable("table") String table) throws SQLException, IOException {
+                                                         @PathVariable("table") String table) throws SQLException, IOException, JSchException {
         List<ForeignKeyMetaData> nativeMetadata = metadataService.getMasterForeignKeys(connectionName, catalog, schema, table);
 
         // Add custom foreign keys
@@ -183,11 +193,32 @@ public class ConnectionController {
      */
     @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/masterForeignKeyInfos", method = RequestMethod.GET)
     public Map<String, Integer> getMasterForeignKeyInfos(@PathVariable("connectionName") String connectionName,
-                                                        @PathVariable("catalog") String catalog,
-                                                        @PathVariable("schema") String schema,
-                                                        @PathVariable("table") String table,
-                                                        @RequestParam("id") String id) throws IOException, SQLException, InterruptedException, ExecutionException {
-        return connectionService.getMasterForeignKeyInfos(connectionName, catalog, schema, table, id);
+                                                         @PathVariable("catalog") String catalog,
+                                                         @PathVariable("schema") String schema,
+                                                         @PathVariable("table") String table,
+                                                         @RequestParam("id") String id,
+                                                         @RequestParam("path") String path) throws IOException, SQLException, InterruptedException, ExecutionException, JSchException {
+        Map<String, Integer> masterInfos = connectionService.getMasterForeignKeyInfos(connectionName, catalog, schema, table, id, path);
+        return connectionService.getMasterForeignKeyInfos(connectionName, catalog, schema, table, id, path);
+    }
+
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/resolvePath", method = RequestMethod.GET)
+    public List<SchemaTable> resolvePath(@PathVariable("connectionName") String connectionName,
+                                   @PathVariable("catalog") String catalog,
+                                   @PathVariable("schema") String schema,
+                                   @PathVariable("table") String table,
+                                   @RequestParam("path") String path) throws IOException, SQLException, InterruptedException, ExecutionException, JSchException {
+        return connectionService.resolvePath(connectionName, catalog, schema, table, path);
+    }
+
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/inversePath", method = RequestMethod.GET)
+    public List<String> inversePath(@PathVariable("connectionName") String connectionName,
+                                   @PathVariable("catalog") String catalog,
+                                   @PathVariable("schema") String schema,
+                                   @PathVariable("table") String table,
+                                   @RequestParam("path") String path) throws IOException, SQLException, InterruptedException, ExecutionException, JSchException {
+        List<String> inversePath = connectionService.inversePath(connectionName, catalog, schema, table, path);
+        return inversePath;
     }
 
     @RequestMapping(path = "/{connectionName1}/catalogs/{catalog1}/schemas/{schema1}/compareWith/{connectionName2}/catalogs/{catalog2}/schemas/{schema2}")
@@ -196,7 +227,7 @@ public class ConnectionController {
                         @PathVariable("schema1") String schema1,
                         @PathVariable("connectionName2") String connectionName2,
                         @PathVariable("catalog2") String catalog2,
-                        @PathVariable("schema2") String schema2) throws SQLException, IOException {
+                        @PathVariable("schema2") String schema2) throws SQLException, IOException, JSchException {
         List<CompareItem> notes = new ArrayList<>();
 
         List<TableMetadata> tables1 = metadataService.getTables(connectionName1, catalog1, schema1);
@@ -300,20 +331,37 @@ public class ConnectionController {
     		@PathVariable("connectionName") String connectionName,
     		@PathVariable("catalog") String catalog,
     		@RequestParam("query") String query
-    		) throws SQLException, IOException, StandardException {
+    		) throws SQLException, IOException, StandardException, JSchException {
     	return connectionService.getQueryInfo(connectionName, catalog, query);
     }
     
-    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/columns/{column}/binary", method = RequestMethod.GET)
-    public void getBinaryData(@PathVariable("connectionName") String connectionName,
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/columns/{column}/content-info", method = RequestMethod.GET)
+    public BinaryInfo getBinaryInfo(@PathVariable("connectionName") String connectionName,
                                                         @PathVariable("catalog") String catalog,
                                                         @PathVariable("schema") String schema,
                                                         @PathVariable("table") String table,
                                                         @PathVariable("column") String column,
                                                         @RequestParam("id") String id,
-                                                        HttpServletResponse response) throws IOException, SQLException {
-    	byte[] data = connectionService.getBinaryData(connectionName, catalog, schema, table, column, id);
-    	response.setContentType(MediaType.IMAGE_JPEG_VALUE);
+                                                        @RequestParam(name="idFieldName", required=false) String idFieldName) throws IOException, SQLException, JSchException {
+    	byte[] data = connectionService.getBinaryData(connectionName, catalog, schema, table, column, idFieldName, id);
+    	InputStream is = new ByteArrayInputStream(data);
+    	String contentType = URLConnection.guessContentTypeFromStream(is);
+    	return BinaryInfo.builder().contentType(contentType).size(data.length).build();
+    }
+    
+    @RequestMapping(path = "/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/columns/{column}/binary", method = RequestMethod.GET)
+    public void getBinaryData(@PathVariable("connectionName") String connectionName,
+    		@PathVariable("catalog") String catalog,
+    		@PathVariable("schema") String schema,
+    		@PathVariable("table") String table,
+    		@PathVariable("column") String column,
+    		@RequestParam("id") String id,
+    		@RequestParam(name="idFieldName", required=false) String idFieldName,
+    		HttpServletResponse response) throws IOException, SQLException, JSchException {
+    	byte[] data = connectionService.getBinaryData(connectionName, catalog, schema, table, column, idFieldName, id);
+    	InputStream is = new ByteArrayInputStream(data);
+    	String contentType = URLConnection.guessContentTypeFromStream(is);
+    	response.setContentType(contentType);
     	response.getOutputStream().write(data);
     }
     
@@ -323,8 +371,8 @@ public class ConnectionController {
                                                         @RequestParam("sql") String sql,
                                                         @RequestParam(value="expectedContentType", required=false) String expectedContentType,
                                                         @RequestParam(value="expectedFileName", required=false) String expectedFileName,
-                                                        HttpServletResponse response) throws IOException, SQLException {
-    	byte[] data = connectionService.getBinaryData(connectionName, catalog, sql);
+                                                        HttpServletResponse response) throws IOException, SQLException, JSchException {
+    	byte[] data = connectionService.getBinaryDataForSql(connectionName, catalog, sql);
     	if(expectedContentType == null) {
         	InputStream is = new ByteArrayInputStream(data);
         	String contentType = URLConnection.guessContentTypeFromStream(is);
@@ -336,5 +384,120 @@ public class ConnectionController {
     		response.setHeader("Content-Disposition", "attachment; filename=" + expectedFileName);
     	}
     	response.getOutputStream().write(data);
+    }
+    
+    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/schemas/{schema}/tables/{table}/labels")
+    public Map<Object, String> getRowLabels(@PathVariable("connectionName") String connectionName,
+            @PathVariable("catalog") String catalog,
+            @PathVariable("schema") String schema,
+            @PathVariable("table") String table,
+            @RequestParam("ids") String[] ids) throws SQLException, IOException, JSchException {
+    	return connectionService.getRowLabels(connectionName, catalog, schema, table, ids);
+    }
+    
+    @RequestMapping("/ssh")
+    public List<String> testJsch() throws JSchException {
+    	JSch jsch=new JSch();
+
+        
+        String user = "cynteka";
+        String host = "proxysp.cynteka.ru";
+
+        Session session = jsch.getSession(user, host, 10097);
+
+        int lport = 15432;
+
+        String rhost = "localhost";
+        int rport = 5432;
+        
+        UserInfo ui = new UserInfo() {
+			
+			@Override
+			public void showMessage(String message) {
+				// TODO Auto-generated method stub
+				log.info(message);
+			}
+			
+			@Override
+			public boolean promptYesNo(String message) {
+				log.info("promptYesNo : " + message);
+				return true;
+			}
+			
+			@Override
+			public boolean promptPassword(String message) {
+				return true;
+			}
+			
+			@Override
+			public boolean promptPassphrase(String message) {
+				// TODO Auto-generated method stub
+				return false;
+			}
+			
+			@Override
+			public String getPassword() {
+				return "SalutBefog2583";
+			}
+			
+			@Override
+			public String getPassphrase() {
+				return null;
+			}
+		};
+		session.setUserInfo(ui);
+		
+
+        session.connect();
+
+        int assinged_port = session.setPortForwardingL(0, rhost, rport);
+        System.out.println("localhost:"+assinged_port+" -> "+rhost+":"+rport);
+
+        
+        List<String> res = new ArrayList();
+        res.add("localhost:"+assinged_port+" -> "+rhost+":"+rport);
+        return res;
+    }
+
+    @RequestMapping("/test")
+    public List<String> test() throws IOException, JSchException, SQLException {
+        DataSource ds = dataSourceService.getDataSource("LocalhostMySQL", "cyfoman");
+        Connection con = ds.getConnection();
+        DatabaseMetaData metadata = con.getMetaData();
+        List<String> res = new ArrayList<>();
+        ResultSet rs = metadata.getImportedKeys("cyfoman", null, "account_type");
+        while(rs.next()) {
+            String s = "IK " + rs.getString("FKTABLE_NAME") + " - " +
+                    rs.getString("PKTABLE_NAME");
+            res.add(s);
+        }
+        rs = metadata.getExportedKeys("cyfoman", null, "account_type");
+        while(rs.next()) {
+            String s = "EK " + rs.getString("FKTABLE_NAME") + " - " +
+                    rs.getString("PKTABLE_NAME");
+            res.add(s);
+        }
+        return res;
+    }
+
+    @RequestMapping("/test2")
+    public List<String> test2() throws IOException, JSchException, SQLException {
+        DataSource ds = dataSourceService.getDataSource("BigboxSelectelDB1", "cyn_quantech");
+        Connection con = ds.getConnection();
+        DatabaseMetaData metadata = con.getMetaData();
+        List<String> res = new ArrayList<>();
+        ResultSet rs = metadata.getImportedKeys("cyn_quantech", "public", "account_type");
+        while(rs.next()) {
+            String s = "2IK " + rs.getString("FKTABLE_NAME") + " - " +
+                    rs.getString("PKTABLE_NAME");
+            res.add(s);
+        }
+        rs = metadata.getExportedKeys("cyn_quantech", "public", "account_type");
+        while(rs.next()) {
+            String s = "2EK " + rs.getString("FKTABLE_NAME") + " - " +
+                    rs.getString("PKTABLE_NAME");
+            res.add(s);
+        }
+        return res;
     }
 }

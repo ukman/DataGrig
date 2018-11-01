@@ -5,6 +5,8 @@ import com.datagrig.ConnectionConfig;
 import com.datagrig.pojo.ForeignKeyMetaData;
 import com.datagrig.pojo.TestConnectionResult;
 import com.datagrig.services.ConfigService;
+import com.jcraft.jsch.JSchException;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,7 +52,7 @@ public class ConfigController {
     }
 
     @RequestMapping(path="/connections/{connectionName}/test", method = RequestMethod.PUT)
-    public TestConnectionResult testConnection(@PathVariable("connectionName") String connectionName, @RequestBody ConnectionConfig connectionConfig) throws ClassNotFoundException, SQLException {
+    public TestConnectionResult testConnection(@PathVariable("connectionName") String connectionName, @RequestBody ConnectionConfig connectionConfig) throws ClassNotFoundException, SQLException, JSchException {
         return configService.testConnection(connectionName, connectionConfig);
     }
 

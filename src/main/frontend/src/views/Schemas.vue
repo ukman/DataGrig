@@ -1,26 +1,29 @@
 <template>
-  <div>
-  	<div v-if="loading">
-  		Loading...
-  	</div>
-  	<b-alert variant="danger" v-if="loadingError != null">
-  	  {{ loadingError.body.message }}
-  	</b-alert>
-  	<b-table :items="schemas">
-    	<template slot="name" slot-scope="data">
-    	  <router-link :to="{name:'tables', params:{connectionName: connectionName, catalog: catalog, schema: data.value}}">{{data.value}}</router-link>
-	    </template>  	
-  	</b-table>
-  </div>
+    <div>
+        <loading-icon v-bind:loading="loading"/>
+        <b-alert variant="danger" v-if="loadingError != null">
+            {{ loadingError.body.message }}
+        </b-alert>
+        <b-table :items="schemas">
+            <template slot="name" slot-scope="data">
+                <router-link
+                        :to="{name:'schema', params:{connectionName: connectionName, catalog: catalog, schema: data.value}}">
+                    {{data.value}}
+                </router-link>
+            </template>
+        </b-table>
+    </div>
 </template>
 
 <script>
 import config from "../config"
+import loadingIcon from "../ui/LoadingIcon.vue";
 
 export default {
   name: 'schemas',
   props: ['connectionName', 'catalog'],
   components: {
+    loadingIcon
   },
   data() {return {
     	schemas: [],
@@ -42,4 +45,5 @@ export default {
   	
   }
 }
+
 </script>

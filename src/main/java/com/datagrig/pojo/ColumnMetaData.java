@@ -1,5 +1,7 @@
 package com.datagrig.pojo;
 
+import java.sql.Types;
+
 import lombok.Builder;
 import lombok.Data;
 
@@ -17,4 +19,14 @@ public class ColumnMetaData {
     private boolean nullable;
     private boolean autoIncrement;
     private String comment;
+    
+    public boolean isBinary() {
+    	return typeId == Types.BINARY 
+    			|| typeId == Types.VARBINARY
+    			|| typeId == Types.LONGVARBINARY;
+    }
+
+    public boolean isArray() {
+    	return typeId == Types.ARRAY;
+    }
 }

@@ -8,4 +8,7 @@ import lombok.Data;
 public class SequenceMetaData {
 	private String name;
 	private long value;
+	private long minValue;
+	private long maxValue;
+	private int increment;
 }

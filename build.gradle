@@ -51,7 +51,10 @@ dependencies {
 	
 	// https://mvnrepository.com/artifact/com.akiban/akiban-sql-parser
 	compile group: 'com.akiban', name: 'akiban-sql-parser', version: '1.0.16'
-
+	
+	// https://mvnrepository.com/artifact/com.jcraft/jsch
+	compile group: 'com.jcraft', name: 'jsch', version: '0.1.54'
+	
     // https://mvnrepository.com/artifact/hikari-cp/hikari-cp
     compile group: 'com.zaxxer', name: 'HikariCP', version: '3.1.0'
 
@@ -87,7 +90,7 @@ dependencies {
 	compile group: 'org.apache.commons', name: 'commons-collections4', version: '4.2'
 	
     // https://mvnrepository.com/artifact/org.projectlombok/lombok
-    compile group: 'org.projectlombok', name: 'lombok', version: '1.16.16'
+    compile group: 'org.projectlombok', name: 'lombok', version: '1.18.2'
 
 	    // Jackson serializers for Java 8 java.time.* API
     compile 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.8.4'
