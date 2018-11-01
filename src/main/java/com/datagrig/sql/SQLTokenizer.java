@@ -67,9 +67,10 @@ public class SQLTokenizer {
         private String regex;
 
         public static SQLTokenType typeOf(Matcher m) {
+            String full = m.group();
             for(SQLTokenType type : values()) {
                 String s = m.group(type.name());
-                if(s != null) {
+                if(s != null && s.equals(full)) {
                     return type;
                 }
             }
