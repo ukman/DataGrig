@@ -21,10 +21,8 @@ public class SQLTokenizer {
     @Data
     public static class Token {
 
-        @NonNull
         private String token;
 
-        @NonNull
         private SQLTokenType type;
 
         public String toString() {
@@ -35,8 +33,8 @@ public class SQLTokenizer {
     @AllArgsConstructor
     @NoArgsConstructor
     public enum SQLTokenType {
-        KEYWORD("select|from|where|join|left|on|order|by|group|like|is|null"),
-        ID("[A-Za-z_][A-Za-z_0-9]*"),
+        KEYWORD("select|from|where|join|left|on|order|by|group|like|is|null|distinct|as"),
+        ID("[$A-Za-z_][$A-Za-z_0-9]*|\\?"),
         ASTERISK("\\*"),
         SPACE("\\s+"),
         STRING("\"[^\"]*\"|'[^']*'"),
@@ -57,6 +55,7 @@ public class SQLTokenizer {
         MULT("\\*"),
         DIV("/"),
         MOD("\\\\"),
+        COMMA("\\,"),
         OPENBRACE("\\("),
         CLOSEBRACE("\\)"),
         QUESTION("\\?"),
@@ -137,9 +136,11 @@ public class SQLTokenizer {
         return res;
     }
 
+    /*
     public static void main(String[] args) throws SQLException {
         SQLTokenizer tokenizer = new SQLTokenizer();
         List<Token> tokens = tokenizer.getTokens("SELECT * from table where a like 'Hello%eee' and t.b=1 and c=1. and d=1.4 and f=.45 or g=? or h > 5 or g < 3 or (gggg>=6 or z <= 45 or bb=:bb)");
         log.debug("Tokens = " + tokens);
     }
+    //*/
 }

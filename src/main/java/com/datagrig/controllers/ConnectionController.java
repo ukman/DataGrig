@@ -22,7 +22,8 @@ import javax.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 
 import com.datagrig.pojo.*;
-import com.datagrig.services.DataSourceService;
+import com.datagrig.services.*;
+import com.datagrig.sql.SQLParseException;
 import com.datagrig.ssh.SSHKeepAlive;
 import org.apache.commons.lang.ObjectUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,9 +38,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.akiban.sql.StandardException;
 import com.datagrig.pojo.CompareItem.Severity;
-import com.datagrig.services.ConfigService;
-import com.datagrig.services.ConnectionService;
-import com.datagrig.services.MetadataService;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
@@ -55,7 +53,10 @@ public class ConnectionController {
 
     @Autowired
     private ConnectionService connectionService;
-    
+
+    @Autowired
+    private AnalyzeQueryService analyzeQueryService;
+
     @Autowired
     private MetadataService metadataService;
 
@@ -394,7 +395,14 @@ public class ConnectionController {
             @RequestParam("ids") String[] ids) throws SQLException, IOException, JSchException {
     	return connectionService.getRowLabels(connectionName, catalog, schema, table, ids);
     }
-    
+
+    @RequestMapping(path="/{connectionName}/catalogs/{catalog}/analyze")
+    public List<String> analyzeQuery(@PathVariable("connectionName") String connectionName,
+            @PathVariable("catalog") String catalog,
+            @RequestParam("query") String query) throws SQLException, IOException, JSchException, SQLParseException {
+    	return analyzeQueryService.analyzeQuery(connectionName, catalog, query);
+    }
+
     @RequestMapping("/ssh")
     public List<String> testJsch() throws JSchException {
     	JSch jsch=new JSch();
