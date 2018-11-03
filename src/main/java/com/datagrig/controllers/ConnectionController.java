@@ -403,6 +403,15 @@ public class ConnectionController {
     	return analyzeQueryService.analyzeQuery(connectionName, catalog, query);
     }
 
+    @RequestMapping(path="/analyze")
+    public List<String> analyzeQuery(@RequestParam("query") String query, @RequestParam(name = "count", required = false, defaultValue = "1") int count) throws SQLException, IOException, JSchException, SQLParseException {
+        List<String> res = null;
+        for(int i = 0; i < count; i++) {
+            res = analyzeQueryService.analyzeQuery(query);
+        }
+    	return res;
+    }
+
     @RequestMapping("/ssh")
     public List<String> testJsch() throws JSchException {
     	JSch jsch=new JSch();

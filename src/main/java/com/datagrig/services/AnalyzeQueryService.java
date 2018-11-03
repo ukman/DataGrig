@@ -57,6 +57,22 @@ public class AnalyzeQueryService {
         return res;
     }
 
+
+    public List<String> analyzeQuery(String query) throws IOException, JSchException, SQLParseException, SQLException {
+        SQLParser parser = new SQLParser();
+        SQLSelectQuery sqlQuery = (SQLSelectQuery) parser.parse(query);
+        List<String> res = new ArrayList<>();
+        res.add("Analyze '" + query + "'");
+
+        SQLSimpleConditionParser simpleConditionParser = new SQLSimpleConditionParser();
+        FieldResolver fieldResolver = new FieldResolver();
+
+        for (FromTable fromTable : sqlQuery.getFromTableList()) {
+            res.add("Check index for table " + fromTable);
+        }
+        return res;
+    }
+
     private void checkIndex(List<String> res, DatabaseMetaData metadata, String expression, String tableField, FromTable table, String catalog) {
         try {
             ResultSet indexRs = metadata.getIndexInfo(catalog, null, table.getExpression(), false, false);
