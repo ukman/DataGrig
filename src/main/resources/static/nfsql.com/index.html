@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <title>NFSql - Need for Speedy SQL</title>
+        <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    </head>
+    <body>
+        <div class="container">
+            <h1>
+                NFSql
+            </h1>
+            <p class="lead text-muted">
+                Need for Speedy SQL
+            </p>
+            <p>
+                We help you to speed up your SQL database.
+                SQL analyser parses your queries, checks your database structure and generates report that helps you to make your databases faster.
+            </p>
+            <p>
+                SQL Optimizer includes different approaches how to optimize SQL queries. Here some of them:
+                <ol>
+                    <li>
+                        Create index for field if it's used in join
+                        <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name, c.name <b>AS</b> company_name
+<b>FROM</b> person p
+  <b>JOIN</b> company c <b>on</b> p.company_id = c.id
+                        </code></pre>
+                        <p class="text-danger">Check if index for field person.company_id is created</p>
+                    </li>
+                    <li>
+                        Kick off of correlated subquery
+                        <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name,
+              (
+                 <b>SELECT</b> c.name
+                 <b>FROM</b> company c <b>where</b> c.id = p.company_id
+              ) <b>AS</b> company_name
+<b>FROM</b> person p
+                        </code></pre>
+                        <p class="text-danger">Redesign correlated subquery that depends on field person.company_id from super query</p>
+                    </li>
+                    <li>
+                        Replace <b>COUNT</b> with <b>EXISTS</b>
+                        <pre><code>
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE</b> (<b>SELECT</b> count(p.id) <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id) > 0
+                            </code></pre>
+
+                        <p class="text-danger">
+                        Replace <b>COUNT</b> in subquery with <b>EXISTS</b>
+                        <pre><code class="text-danger">
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE</b> EXISTS(<b>SELECT</b> p.id <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id)
+                            </code></pre>
+
+                        </p>
+                    </li>
+                    <li>
+                        Replace <b>OR</b> conditions with <b>IN</b> clause.
+                        <pre><code>
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE</b> id = 1 <b>OR</b> id = 5 <b>OR</b> id = 12 <b>OR</b> id = 24
+                            </code></pre>
+
+                        <p class="text-danger">
+                            Replace <b>OR</b> with <b>IN</b> clause
+                        <pre><code class="text-danger">
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE</b> id <b>IN</b> (1, 5, 12, 24)
+                            </code></pre>
+
+                        </p>
+                    </li>
+                    <li>
+                        Redesign expression with indexed field.
+                        <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name
+<b>FROM</b> person p
+<b>WHERE</b> extract(‘year’, p.birth_date) = 2000
+                            </code></pre>
+                        condition can be redesigned as
+                        <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name
+<b>FROM</b> person p
+<b>WHERE</b> p.birth_date between '2000-01-01 and '2001-01-01'
+                        </code></pre>
+                    </li>
+                    <li>
+                        <b>ILIKE</b> instead of <b>LOWER</b> or <b>UPPER</b>.
+                        <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name
+<b>FROM</b> person p
+<b>WHERE</b> UPPER(p.first_name) = 'JOHN'
+                            </code></pre>
+                        condition can be redesigned as
+                        <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name
+<b>FROM</b> person p
+<b>WHERE</b> p.first_name ILIKE 'John'
+                            </code></pre>
+                    </li>
+                    <li>
+                        Kick off <b>DISTINCT</b> and replace it with <b>EXISTS</b>.
+
+                        <pre><code>
+<b>SELECT DISTINCT</b> p.company_id
+<b>FROM</b> person p
+                            </code></pre>
+                        query can be redesigned as
+                        <pre><code>
+<b>SELECT</b> c.id
+<b>FROM</b> company c
+<b>WHERE EXISTS</b> (<b>SELECT</b> p.id <b>FROM</b> person p  <b>WHERE</b> p.company_id = c.id)
+                            </code></pre>
+
+                    </li>
+                </ol>
+            </p>
+        </div>
+    </body>
+</html>
