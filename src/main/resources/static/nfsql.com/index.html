@@ -19,47 +19,103 @@
                 SQL analyser parses your queries, checks your database structure and generates report that helps you to make your databases faster.
             </p>
             <p>
-                SQL Optimizer includes different approaches how to optimize SQL queries. Here some of them:
-                <ol>
-                    <li>
-                        Create index for field if it's used in join
+                SQL Optimizer includes different approaches for optimizing SQL queries. Here some of them:
+            </p>
+            <h3>
+                Index for foreign keys
+            </h3>
+                    <p>
+                        Create index for field if it's used in join.
+                        It's one of the simplest way to optimize your queries but
+                        sometimes it's too difficult to check if all indexes are created.
+                        So it's usual when required indexes are missed.
                         <pre><code>
 <b>SELECT</b> p.id, p.first_name, p.last_name, c.name <b>AS</b> company_name
 <b>FROM</b> person p
-  <b>JOIN</b> company c <b>on</b> p.company_id = c.id
+  <b>JOIN</b> company c <b>on</b> <span class="text-danger">p.company_id</span> = c.id
                         </code></pre>
                         <p class="text-danger">Check if index for field person.company_id is created</p>
-                    </li>
-                    <li>
-                        Kick off of correlated subquery
+                    </p>
+
+            <h3>
+                Kick off of correlated subquery
+            </h3>
+                    <p>
+                        Correlated query is a subquery which uses fields from super query as params.
+                        So it can be executed many times (at least 1 query execution per one result row).
+                    </p>
                         <pre><code>
 <b>SELECT</b> p.id, p.first_name, p.last_name,
               (
                  <b>SELECT</b> c.name
-                 <b>FROM</b> company c <b>where</b> c.id = p.company_id
+                 <b>FROM</b> company c <b>where</b> c.id = <span class="text-danger">p.company_id</span>
               ) <b>AS</b> company_name
 <b>FROM</b> person p
                         </code></pre>
                         <p class="text-danger">Redesign correlated subquery that depends on field person.company_id from super query</p>
-                    </li>
-                    <li>
+                        <pre><code class="text-success">
+<b>SELECT</b> p.id, p.first_name, p.last_name, c.name <b>AS</b> company_name
+<b>FROM</b> person p left join company c on p.company_id = c.id
+                        </code></pre>
+
+
+                    <h3>
                         Replace <b>COUNT</b> with <b>EXISTS</b>
-                        <pre><code>
+                    </h3>
+                    <p>
+                        Subqueries are slow but sometimes it's super-slow.
+                        <b>COUNT</b> is very heavy function. But it's used to check if subquery returns at least 1 row.
+                        The following request returns all companies that contains at least 1 employee.
+                    </p>
+                        <pre><code class="text-danger">
 <b>SELECT</b> c.id, c.name
 <b>FROM</b> company c
-<b>WHERE</b> (<b>SELECT</b> count(p.id) <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id) > 0
+<b>WHERE</b> (<b>SELECT</b> COUNT(p.id) <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id) > 0
                             </code></pre>
 
-                        <p class="text-danger">
+                        <p>
                         Replace <b>COUNT</b> in subquery with <b>EXISTS</b>
-                        <pre><code class="text-danger">
+                        <pre><code class="text-success">
 <b>SELECT</b> c.id, c.name
 <b>FROM</b> company c
 <b>WHERE</b> EXISTS(<b>SELECT</b> p.id <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id)
                             </code></pre>
 
                         </p>
-                    </li>
+
+
+
+
+                    <h3>
+                        Replace <b>MAX</b> / <b>MIN</b> with <b>EXISTS</b>
+                    </h3>
+
+                    <p>
+                        Use aggregated functions in subqueries very carefully, much more carefully than in usual queries.
+
+                        For example this query finds companies where the oldest employee was born before 1970 year.
+
+                    </p>
+                        <pre><code class="text-danger">
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE</b> (<b>SELECT</b> MIN(p.birth_date <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id) < '1970-01-01'
+                        </code></pre>
+                        <p>
+                            Redesign this query and replace subselect which contains <b>MAX</b> / <b>MIN</b> with <b>EXISTS</b>.
+
+                            This query does the same.
+                            <pre><code class="text-success">
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE EXISTS</b> (<b>SELECT</b> ID <b>FROM</b> person p <b>WHERE</b> p.birth_date < '1970-01-01')
+                            </code></pre>
+                        </p>
+
+
+
+
+
                     <li>
                         Replace <b>OR</b> conditions with <b>IN</b> clause.
                         <pre><code>
@@ -85,12 +141,14 @@
 <b>FROM</b> person p
 <b>WHERE</b> extract(‘year’, p.birth_date) = 2000
                             </code></pre>
+                        <p class="text-danger">
                         condition can be redesigned as
-                        <pre><code>
+                        <pre><code class="text-success">
 <b>SELECT</b> p.id, p.first_name, p.last_name
 <b>FROM</b> person p
-<b>WHERE</b> p.birth_date between '2000-01-01 and '2001-01-01'
+<b>WHERE</b> p.birth_date <b>BETWEEN</b> '2000-01-01 <b>AND</b> '2001-01-01'
                         </code></pre>
+                        </p>
                     </li>
                     <li>
                         <b>ILIKE</b> instead of <b>LOWER</b> or <b>UPPER</b>.
