@@ -7,6 +7,10 @@
         <title>NFSql - Need For Speedy SQL</title>
         <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
         <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.6.3/css/all.css" integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/" crossorigin="anonymous">
+
+        <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700" rel="stylesheet" type="text/css">
+        <link href="https://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://blackrockdigital.github.io/startbootstrap-freelancer/css/freelancer.min.css">
     </head>
     <body>
 
@@ -23,18 +27,63 @@
             <a class="navbar-brand" href="#">Navbar</a>
         </nav>
 -->
+    <div class="bg-primary text-white">
+        <div class="container " style="padding-top:50px;">
+            <div class="row ">
+                <p class="col-md-3">
+                    <img src="logo-icon.svg" style="max-width:150px;"><br/>
+                    <img src="NFSQL-logo.svg" style="max-width:150px;padding-top:20px;"><br/>
+                    <!--
+                    <img class="img-fluid" src="NFSQL-logo.png" style="max-width:200px;">
+                    -->
+                </p>
+                <div class="col-md-9">
+                    <h3>
+                        Need For Speedy SQL
+                    </h3>
+                    <h6>
+
+                        We help companies to speed up databases, by optimizing SQL queries
+                        that allows to decrease costs for clouds.
+                    </h6>
+                </div>
+            </div>
+        </div>
+    </div>
         <div class="container" style="padding-top:50px;">
-            <h1>
-                NFSQL
-            </h1>
-            <p class="lead text-muted">
-                Need For Speedy SQL
-            </p>
+            <h3>
+                Is your SQL DBs fast?
+            </h3>
             <p>
-                We help companies to speed up SQL database.
+                We insist that every SQL database can work faster on the same environment. And we know how to do that.
+                We design tools that find slow queries in your DB, analyse it and find best solutions for speeding it up.
+            </p>
+            <!--
+            <p>
                 NFSQL analyser parses your queries, checks your database structure and generates
                 reports that helps you to make your databases faster.
             </p>
+            -->
+            <h3>
+                How does this work?
+            </h3>
+            <p>
+                We connect your DB with our service and analyze your queries and statistics.
+                Every day our analyser parses all queries that were executed and tries to
+                find optimization for <b>every</b> query.
+                After that it sends report to your DBA with evaluation of
+                performance boost for every optimization.
+            </p>
+            <h3>
+                Is it safe?
+            </h3>
+            <p>
+                We connect to your DB in read-only mode and we don't read your data.
+                We just need your metadata information.
+                So you can create account with minimum permission for our analyser to avoid any
+                possibility of grabbing your data.
+            </p>
+
             <form action="analyse" method="get">
                 <row>
                     <textarea rows="5" class="col-12" placeholder="Type your SQL query..." name="query"></textarea>
@@ -250,6 +299,6 @@
 </script>
     <noscript><div><img src="https://mc.yandex.ru/watch/52058586" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
     <!-- /Yandex.Metrika counter -->
-    
+
     </body>
 </html>
