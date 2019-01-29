@@ -55,8 +55,8 @@
                 Is your SQL DBs fast?
             </h3>
             <p>
-                We insist that every SQL database can work faster on the same environment. And we know how to do that.
-                We design tools that find slow queries in your DB, analyse it and find best solutions for speeding it up.
+                We insist that <b>every SQL database can work faster</b> on the same environment. And we know how to do that.
+                We design tools that find slow queries in your DB, analyse it and find the best solutions for speeding it up.
             </p>
             <!--
             <p>
@@ -74,6 +74,40 @@
                 After that it sends report to your DBA with evaluation of
                 performance boost for every optimization.
             </p>
+            <p>
+                Let's assume your database executes 200 different queries every day.
+                We can collect statistics and sort all queries by total time spent for all executions.
+                <a href="https://en.wikipedia.org/wiki/Zipf%27s_law" title="Click to open Wikipedia article">Zipf empirical law</a> states that
+                the first query takes 2 times more time than the second and 3 times more then the third query etc.
+                So n-ranked query takes n-times less time then the first query. For example the first query takes 10% of all
+                time spent by the server during 24 hours. The second query 5%, the third 3.33% etc.
+            </p>
+            <p class="text-center">
+                <i>Zipf distribution for 200 queries</i><br>
+                <img src="zipf.svg" class="img-fluid" alt="Zipf distribution for 200 queries">
+            </p>
+            <p>
+                So top-10 queries takes about 30% of all time
+                (marked with <span style="background-color:#4285f4;display:inline-block;width:10px;height:10px;"></span> color)
+                The rest 190 queries take also about 30%
+                (marked with <span style="background-color:#db4437;display:inline-block;width:10px;height:10px;"></span> color).
+                40% of time server was in idle mode.
+            </p>
+            <p>
+                In order to speed up database usually DBA tries to optimize top-10 queries.
+                It's good strategy but after 3-7 iterations it's not obviously how to optimize top-10 queries.
+                It's time to optimize the rest 190 queries. They look fast but usually
+                these queries can be 10x or even 100x times faster because nobody tries to optimize it.
+                In the same time these queries takes CPU and IO resources and make top-10 queries slower.
+                So optimizing last-190 queries we make top-10 queries faster.
+            </p>
+            <p>
+                Usually most of these last-190 queries are easy to optimize.
+                The only problem is the number.
+                <b>Our goal is to analyze all queries automatically,
+                    to reveal problems and to propose solutions.</b>
+            </p>
+
             <h3>
                 Is it safe?
             </h3>
@@ -82,6 +116,10 @@
                 We just need your metadata information.
                 So you can create account with minimum permission for our analyser to avoid any
                 possibility of grabbing your data.
+            </p>
+            <p>
+                Sometimes we need to understand the nature of your data to propose the best solutions.
+                In this case we can install our application on you side so we don't have access to your DB.
             </p>
 
             <form action="analyse" method="get">
