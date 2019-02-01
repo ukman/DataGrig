@@ -55,8 +55,8 @@
                 Is your SQL DBs fast?
             </h3>
             <p>
-                We insist that <b>every SQL database can work faster</b> on the same environment. And we know how to do that.
-                We design tools that find slow queries in your DB, analyse it and find the best solutions for speeding it up.
+                We insist that <b>every SQL database can work faster</b> on the same environment (CPU, RAM, HDD/SSD...). We know how to do that.
+                We design tools that find slow queries in your DB, analyse it and find the best solutions for optimizing and speeding it up.
             </p>
             <!--
             <p>
@@ -84,14 +84,13 @@
             </p>
             <p class="text-center">
                 <i>Zipf distribution for 200 queries</i><br>
-                <img src="zipf.svg" class="img-fluid" alt="Zipf distribution for 200 queries">
+                <img src="zipf-wide-labels.svg" class="img-fluid" alt="Zipf distribution for 200 queries">
             </p>
             <p>
-                So top-10 queries takes about 30% of all time
+                So top-10 queries takes about 50% of all time
                 (marked with <span style="background-color:#4285f4;display:inline-block;width:10px;height:10px;"></span> color)
-                The rest 190 queries take also about 30%
+                The rest 190 queries take also about 50%
                 (marked with <span style="background-color:#db4437;display:inline-block;width:10px;height:10px;"></span> color).
-                40% of time server was in idle mode.
             </p>
             <p>
                 In order to speed up database usually DBA tries to optimize top-10 queries.
@@ -99,12 +98,14 @@
                 It's time to optimize the rest 190 queries. They look fast but usually
                 these queries can be 10x or even 100x times faster because nobody tries to optimize it.
                 In the same time these queries takes CPU and IO resources and make top-10 queries slower.
-                So optimizing last-190 queries we make top-10 queries faster.
+                So optimizing last-190 queries makes top-10 queries faster.
             </p>
             <p>
                 Usually most of these last-190 queries are easy to optimize.
                 The only problem is the number.
-                <b>Our goal is to analyze all queries automatically,
+                Some our clients have more than 1000 different queries and
+                <span style="white-space:nowrap">last-990</span> queries takes about 70% of time.
+                <b>Our goal is to analyze all queries automatically
                     to reveal problems and to propose solutions.</b>
             </p>
 
@@ -112,9 +113,9 @@
                 Is it safe?
             </h3>
             <p>
-                We connect to your DB in read-only mode and we don't read your data.
+                We connect to client's DB in read-only mode and we don't read your data.
                 We just need your metadata information.
-                So you can create account with minimum permission for our analyser to avoid any
+                So we use DB-accounts with minimum permission for our analyser to avoid any
                 possibility of grabbing your data.
             </p>
             <p>
@@ -132,12 +133,15 @@
                     </p>
                 </row>
             </form>
+            <h3>
+                Our Optimization
+            </h3>
             <p>
                 NFSQL Optimizer includes different approaches for optimizing SQL queries. Here some of them:
             </p>
-            <h3>
+            <h5>
                 Index for foreign keys
-            </h3>
+            </h5>
                     <p>
                         Create index for field if it's used in join.
                         It's one of the simplest way to optimize your queries but
@@ -149,11 +153,12 @@
   <b>JOIN</b> company c <b>on</b> <span class="text-danger">p.company_id</span> = c.id
                         </code></pre>
                         <p class="text-danger">Check if index for field person.company_id is created</p>
+                        <p class="text-success">NFSQL can check all indexes automatically and warn if it is missed. </p>
                     </p>
 
-            <h3>
+            <h5>
                 Kick off of correlated subquery
-            </h3>
+            </h5>
                     <p>
                         Correlated query is a subquery which uses fields from super query as params.
                         So it can be executed many times (at least 1 query execution per one result row).
@@ -172,7 +177,7 @@
 <b>FROM</b> person p left join company c on p.company_id = c.id
                         </code></pre>
 
-
+<!--
                     <h3>
                         Replace <b>COUNT</b> with <b>EXISTS</b>
                     </h3>
@@ -196,13 +201,44 @@
                             </code></pre>
 
                         </p>
+-->
+                    <h5>
+                        <b>COUNT</b> for huge tables
+                    </h5>
+                    <p>
+                        COUNT takes a lot of time. Sometimes it's necessity in most cases user just want to know
+                        if there are 100  records or 2 billions. Have you seen Google
+                    </p>
+                    <h5>
+                        <b>COUNT</b> in conditions
+                    </h5>
+                    <p>
+                        Subqueries are slow but sometimes it's super-slow.
+                        <b>COUNT</b> finds all rows and takes a lot of time even if you need to check if it returns
+                        only 10 rows. The following request returns all companies that contains 10 employees.
+                    </p>
+                    <pre><code class="text-danger">
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE</b> (<b>SELECT</b> COUNT(p.id) <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id) > 10
+                            </code></pre>
+                    <p>
+                        It can be optimized with the following query.
+                    </p>
+            <pre><code class="text-success">
+<b>SELECT</b> c.id, c.name
+<b>FROM</b> company c
+<b>WHERE</b> (<b>SELECT</b> COUNT(t.id) <b>FROM</b> (<b>SELECT</b> p.id <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id <b>LIMIT</b> 11) <b>AS</b> t) > 10
+                            </code></pre>
+                    <p>
+                        This query does not try to find all rows in table <i>person</i> and stops after matching 11 rows.
+                    </p>
 
 
 
-
-                    <h3>
+                    <h5>
                         Replace <b>MAX</b> / <b>MIN</b> with <b>EXISTS</b>
-                    </h3>
+                    </h5>
 
                     <p>
                         Use aggregated functions in subqueries very carefully, much more carefully than in usual queries.
@@ -230,9 +266,9 @@
 
 
 
-                    <h3>
+                    <h5>
                         Replace <b>OR</b> conditions with <b>IN</b> clause.
-                    </h3>
+                    </h5>
                     <p>
                         <b>OR</b> makes queries slow.
                     </p>
@@ -251,9 +287,9 @@
                             </code></pre>
 
                         </p>
-                    <h3>
+                    <h5>
                         Redesign expression with indexed field.
-                    </h3>
+                    </h5>
                         <pre><code>
 <b>SELECT</b> p.id, p.first_name, p.last_name
 <b>FROM</b> person p
@@ -267,9 +303,9 @@
 <b>WHERE</b> p.birth_date <b>BETWEEN</b> '2000-01-01 <b>AND</b> '2001-01-01'
                         </code></pre>
                         </p>
-                    <h3>
+                    <h5>
                         <b>ILIKE</b> instead of <b>LOWER</b> or <b>UPPER</b>.
-                    </h3>
+                    </h5>
                     <p>
                         Usual practice is to use UPPER / LOWER functions for case insensitive mode search.
                     </p>
@@ -286,9 +322,9 @@
 <b>FROM</b> person p
 <b>WHERE</b> p.first_name ILIKE 'John'
                             </code></pre>
-                    <h3>
+                    <h5>
                         Kick off <b>DISTINCT</b> and replace it with <b>EXISTS</b>.
-                    </h3>
+                    </h5>
                     <p>
                         The following query needs to read all records from table person.
                     </p>
