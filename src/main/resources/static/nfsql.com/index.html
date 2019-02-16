@@ -43,9 +43,12 @@
                     </h3>
                     <h6>
 
-                        We help companies to speed up databases, by optimizing SQL queries
-                        that allows to decrease costs for clouds.
+                        We help companies to speed up databases, by optimizing SQL queries.
+                        It allows to decrease costs for clouds.
                     </h6>
+                    <p>
+                        <a class="btn btn-lg btn-danger" target="_blank" href="https://docs.google.com/forms/d/e/1FAIpQLSddeg8YUcwIMopwrAckso2oc6EyiYw4q2ccDVr3Z1TmgTXihA/viewform">Start to Use</a>
+                    </p>
                 </div>
             </div>
         </div>
@@ -78,7 +81,7 @@
                 Let's assume your database executes 200 different queries every day.
                 We can collect statistics and sort all queries by total time spent for all executions.
                 <a href="https://en.wikipedia.org/wiki/Zipf%27s_law" title="Click to open Wikipedia article">Zipf empirical law</a> states that
-                the first query takes 2 times more time than the second and 3 times more then the third query etc.
+                the first query takes twice as much time as the second query and 3 times more than the third query etc.
                 So n-ranked query takes n-times less time then the first query. For example the first query takes 10% of all
                 time spent by the server during 24 hours. The second query 5%, the third 3.33% etc.
             </p>
@@ -96,16 +99,16 @@
             </p>
             <p>
                 In order to speed up database usually DBA tries to optimize top-10 queries.
-                It's good strategy but after 3-7 iterations it's not obviously how to optimize top-10 queries.
+                It's good strategy but after 3-7 iterations it's not obvious how to optimize top-10 queries.
                 It's time to optimize the rest 190 queries. They look fast but usually
                 these queries can be 10x or even 100x times faster because nobody tries to optimize it.
-                In the same time these queries takes CPU and IO resources and make top-10 queries slower.
+                At the same time these queries takes CPU and IO resources and make top-10 queries slower.
                 So optimizing last-190 queries makes top-10 queries faster.
             </p>
             <p>
                 Usually most of these last-190 queries are easy to optimize.
                 The only problem is the number.
-                Some our clients have more than 1000 different queries and
+                Some of our clients have more than 1000 different queries and
                 <span style="white-space:nowrap">last-990</span> queries takes about 70% of time.
                 <b>Our goal is to analyze all queries automatically
                     to reveal problems and to propose solutions.</b>
@@ -122,7 +125,7 @@
             </p>
             <p>
                 Sometimes we need to understand the nature of your data to propose the best solutions.
-                In this case we can install our application on you side so we don't have access to your DB.
+                In this case we can install our application on you side, so we don't have any access to your DB.
             </p>
 
             <form action="analyse" method="get">
@@ -139,8 +142,12 @@
                 Our Optimization
             </h3>
             <p>
-                NFSQL Optimizer includes different approaches for optimizing SQL queries. Here some of them:
+                NFSQL Optimizer includes different approaches for optimizing SQL queries. Here are some of them:
             </p>
+
+
+
+
             <h5>
                 Index for foreign keys
             </h5>
@@ -158,8 +165,43 @@
                         <p class="text-success">NFSQL can check all indexes automatically and warn if it is missed. </p>
                     </p>
 
+
             <h5>
-                Kick off of correlated subquery
+                Index for high/low selective fields.
+            </h5>
+                <p>
+                    Index can dramatically decrease time of query execution. Especially if you find data by
+                    unique column or
+                    by high-selective column.
+                    High selective column is a column that contains 1 or few records for every distinct value.
+                </p>
+                <p>
+                    <b>Example with good selectivity.</b> If table <i>PERSON</i> having 100'000 rows and
+                    column <i>LAST_NAME</i> has 90'000 distinct values,
+                    then the selectivity of this column is 90'000 / 100'000 = 0.9
+                </p>
+            <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name
+<b>FROM</b> person p
+<b>WHERE</b> p.last_name = 'Stonebreaker'
+                        </code></pre>
+
+                <p>
+                    <b>Example with bad selectivity.</b>
+                    If an column <i>FIRST_NAME</i> on table <i>PERSON</i> of 100'000 records had only 250 distinct values, then the column's
+                    selectivity is 250 / 100'000 = 0.0025 and in this case a query which uses the limitation of such
+                    an index will return 100'000 / 250 = 400 records for each distinct value.
+                </p>
+            <pre><code>
+<b>SELECT</b> p.id, p.first_name, p.last_name
+<b>FROM</b> person p
+<b>WHERE</b> p.first_name = 'John'
+                        </code></pre>
+
+            <p class="text-success">NFSQL checks selectivity and suggest to create index for high selective columns. </p>
+
+            <h5>
+                Get rid of correlated subqueries
             </h5>
                     <p>
                         Correlated query is a subquery which uses fields from super query as params.
@@ -208,15 +250,15 @@
                         <b>COUNT</b> for huge tables
                     </h5>
                     <p>
-                        COUNT takes a lot of time. Sometimes it's necessity in most cases user just want to know
-                        if there are 100  records or 2 billions. Have you seen Google
+                        COUNT takes a lot of time. Sometimes it's a necessity but in most cases the user just want to know
+                        if there are 1 billion records or 2 billions.
                     </p>
                     <h5>
                         <b>COUNT</b> in conditions
                     </h5>
                     <p>
                         Subqueries are slow but sometimes it's super-slow.
-                        <b>COUNT</b> finds all rows and takes a lot of time even if you need to check if it returns
+                        <b>COUNT</b> finds all rows and takes a lot of time even if you need to check whether it returns
                         only 10 rows. The following request returns all companies that contains 10 employees.
                     </p>
                     <pre><code class="text-danger">
@@ -251,7 +293,7 @@
                         <pre><code class="text-danger">
 <b>SELECT</b> c.id, c.name
 <b>FROM</b> company c
-<b>WHERE</b> (<b>SELECT</b> MIN(p.birth_date <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id) < '1970-01-01'
+<b>WHERE</b> (<b>SELECT</b> MIN(p.birth_date) <b>FROM</b> person p <b>WHERE</b> p.company_id = c.id) < '1970-01-01'
                         </code></pre>
                         <p>
                             Redesign this query and replace subselect which contains <b>MAX</b> / <b>MIN</b> with <b>EXISTS</b>.
@@ -350,6 +392,9 @@
                 </ol>
             </p>
         </div>
+    <p class="text-center">
+        <a class="btn btn-lg btn-danger" target="_blank" href="https://docs.google.com/forms/d/e/1FAIpQLSddeg8YUcwIMopwrAckso2oc6EyiYw4q2ccDVr3Z1TmgTXihA/viewform">Start to Use</a>
+    </p>
 
     <footer class="bd-footer text-muted">
         <div class="container-fluid">
