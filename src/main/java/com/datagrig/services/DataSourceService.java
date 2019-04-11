@@ -58,6 +58,7 @@ public class DataSourceService {
         ds.setJdbcUrl(jdbcUrl);
         ds.setUsername(configConnection.getUser());
         ds.setPassword(configConnection.getPassword());
+        ds.setAutoCommit(true);
         return ds;
     }
 
